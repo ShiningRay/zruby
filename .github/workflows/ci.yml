@@ -29,6 +29,15 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Configure MSVC toolchain path
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          tools="$(cygpath -u "$VCToolsInstallDir")/bin/Hostx64/x64"
+          test -x "$tools/link.exe"
+          test -x "$tools/lib.exe"
+          echo "$tools" >> "$GITHUB_PATH"
+
       - name: Install rake
         run: gem install rake --no-document
 
