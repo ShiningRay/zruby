@@ -19,7 +19,7 @@ zruby 当前实测基线：**Zig 0.16.0 + mruby 4.0.0**，93/93 测试通过。0
 | **Previous release** | 上一个 zruby release 的锁定组合；只修安全/严重 bug | 否；保留一个发布周期（到下一个稳定版 + 30 天） |
 | **Canary** | Zig master 或 mruby master/rc | 否；每周跑，失败开 issue |
 
-明确不支持：任意 Zig/mruby 版本组合、未同步 C 宏的自定义 mruby、CRuby、未验证的 Windows 组合。`-Dallow-untested-zig` / `-Dallow-untested-mruby` 只用于迁移试验，不是支持声明。
+明确不支持：任意 Zig/mruby 版本组合、未同步 C 宏的自定义 mruby、CRuby、未验证的 Windows MSVC 组合。`MRB_NAN_BOXING` / `MRB_NO_BOXING` / `MRB_32BIT` 会在 `src/shim.c` 编译期直接 `#error`，不会静默错读。`-Dallow-untested-zig` / `-Dallow-untested-mruby` 只用于迁移试验，不是支持声明。
 
 ## 3. 版本与发布规则
 

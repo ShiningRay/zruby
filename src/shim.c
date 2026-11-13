@@ -19,6 +19,11 @@
 #error "zruby is tested with mruby 4.0.x; define ZRUBY_ALLOW_ANY_MRUBY_4 to try another 4.x"
 #endif
 
+#if defined(MRB_32BIT) || defined(MRB_NAN_BOXING) || defined(MRB_NO_BOXING) || \
+    !defined(MRB_WORD_BOXING)
+#error "zruby requires 64-bit MRB_WORD_BOXING; adjust src/c.zig and src/shim.c for other layouts"
+#endif
+
 _Static_assert(sizeof(mrb_value) == sizeof(uintptr_t),
                "zruby requires mruby's word-boxing mrb_value layout");
 _Static_assert(sizeof(mrb_int) == 8, "zruby requires 64-bit mrb_int");

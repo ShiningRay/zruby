@@ -11,6 +11,7 @@
 - Default `(eval)` filename so compiled code carries debug info for backtraces.
 - Bytecode loading: `VM.loadIrep` / `loadIrepWithOptions`, `mrbc` fixture and regeneration script.
 - Binding symbol check in CI; Windows MinGW CI with a core-only mruby build profile.
+- Compile-time rejection for `MRB_NAN_BOXING` / `MRB_NO_BOXING` / `MRB_32BIT`.
 - Test suite: 93 tests (88 Zig + 5 Ruby integration suites).
 
 ## 0.1.0 (2026-11-13)

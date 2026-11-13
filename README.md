@@ -186,7 +186,7 @@ Windows 构建需要 MinGW 工具链；CI 使用 `-Dtarget=x86_64-windows-gnu` �
 
 ## 限制与安全边界
 
-- 只支持 mruby 默认构建配置（word boxing、64 位 `mrb_int`、bigint/rational/complex/set 等）。自定义 mruby 配置必须同步修改 `src/c.zig` 与 `src/shim.c` 的 ABI 假设。
+- 只支持 mruby 默认构建配置（word boxing、64 位 `mrb_int`、bigint/rational/complex/set 等）。`MRB_NAN_BOXING` / `MRB_NO_BOXING` / `MRB_32BIT` 会触发编译期错误；自定义 mruby 配置必须同步修改 `src/c.zig` 与 `src/shim.c` 的 ABI 假设。
 - 一个 `VM` 不应跨线程共享。mruby 的异常使用 `setjmp`/`longjmp`，核心的构造、调用、定义与异常检查都放在 `mrb_protect_error` 内。
 - `VM.eval` 只接受不含内部 NUL 的源码；内部会复制并补 NUL 哨兵。Ruby 字符串本身仍可包含 NUL，`toString` 会按长度精确拷贝。
 - 当前不提供 Fiber、完整类型绑定或自动生成的 C API。数组/哈希操作走 Ruby 方法，适合正确性优先的场景。
