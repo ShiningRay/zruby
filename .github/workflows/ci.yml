@@ -31,6 +31,9 @@ jobs:
       - name: Verify pinned toolchain
         run: ./scripts/verify-toolchain.sh
 
+      - name: Check binding symbols
+        run: ./scripts/check-bindings.sh
+
       - name: Format check
         run: zig fmt --check build.zig src tests examples
 

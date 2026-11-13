@@ -123,21 +123,25 @@ zig build
 
 ### 6.4 跨平台与构建
 
-- Linux/Windows CI 实跑；
-- 从 mruby 头文件生成 `c.zig`；
-- 支持 `MRB_NAN_BOXING` / `MRB_NO_BOXING` 的配置化绑定；
-- 评估纯 Zig 的 mruby 构建（presym、host `mrbc`、gem registry），去掉 Ruby/rake 依赖；
-- 非 BigInt 配置的 Hash 行为负向测试。
+- [x] Linux CI 实跑（Ubuntu + macOS 矩阵）；
+- [x] 绑定符号一致性检查：`scripts/check-bindings.sh` 对照 `libmruby.a` 校验 `src/c.zig` 的 `mrb_*` 声明；
+- [ ] Windows CI；
+- [ ] 从 mruby 头文件生成 `c.zig`；
+- [ ] 支持 `MRB_NAN_BOXING` / `MRB_NO_BOXING` 的配置化绑定；
+- [ ] 评估纯 Zig 的 mruby 构建（presym、host `mrbc`、gem registry），去掉 Ruby/rake 依赖；
+- [ ] 非 BigInt 配置的 Hash 行为负向测试。
+
+Windows、绑定生成器、boxing 配置和纯 Zig 构建属于独立的大型工程，当前版本保持“手写最小绑定 + 默认 word-boxing”的边界，不在未验证的情况下宣称支持。
 
 ## 7. 风险与依赖
 
 | 项 | 说明 | 应对 |
 | --- | --- | --- |
-| ABI 锁定 | 只支持 word boxing / 64 位 int | 文档明确；静态断言；后续生成器 |
+| ABI 锁定 | 只支持 word boxing / 64 位 int | 文档明确；静态断言；符号检查 |
 | longjmp | mruby 异常跨 C 边界 | 核心分配/调用/定义路径经 protect；回调禁止 panic |
 | GC | 未保护值可能被回收 | 返回值 protect；文档要求长期值 protect |
-| 平台 | 仅 macOS 本地验证 | CI 矩阵；发布前补 Linux |
-| 远程仓库 | 当前只有本地仓库 | 需要用户确认可见性后再推送 |
+| 平台 | 本地 macOS + CI Ubuntu/macOS | Windows 待补 |
+| 远程仓库 | 已发布 `ShiningRay/zruby` | 保持 main 可发布，tag 不可变 |
 
 ## 8. 时间估算
 

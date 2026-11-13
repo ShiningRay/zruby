@@ -98,6 +98,7 @@ Ruby 套件用 `raise` 断言；失败信息经 `lastErrorClass`/`lastError` 回
 zig build test
 zig build test -Doptimize=ReleaseSafe
 zig build run
+./scripts/check-bindings.sh
 ```
 
 干净环境：
