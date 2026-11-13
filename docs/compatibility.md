@@ -54,6 +54,7 @@ zruby 当前实测基线：**Zig 0.16.0 + mruby 4.0.0**，93/93 测试通过。0
 - clean-room：`./scripts/build-mruby.sh && zig build test`。
 - `./scripts/verify-toolchain.sh` 校验 Zig/mruby 版本。
 - `./scripts/check-bindings.sh` 校验 `src/c.zig` 声明的 `mrb_*` 符号存在于 `libmruby.a`。
+- `./scripts/generate-bindings.sh --check` 校验 `src/c.zig` 与 mruby 头文件生成结果一致。
 
 ### Canary（非阻塞）
 

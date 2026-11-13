@@ -1,3 +1,4 @@
+// Generated in part from mruby headers by scripts/generate-bindings.sh.
 //! Hand-written bindings for the mruby 4.x C API.
 //!
 //! `mrb_value` follows the selected mruby boxing layout: word boxing and
@@ -42,6 +43,12 @@ else
         w: usize,
     };
 
+pub const struct_mrb_state = mrb_state;
+pub const struct_RClass = RClass;
+pub const struct_RProc = RProc;
+pub const struct_mrb_parser_state = mrb_parser_state;
+pub const mrb_args_format = [*c]const u8;
+
 pub const mrb_func_t = ?*const fn (mrb: ?*mrb_state, self: mrb_value) callconv(.c) mrb_value;
 pub const RProc = opaque {};
 
@@ -51,126 +58,57 @@ pub const mrb_protect_error_func = fn (
 ) callconv(.c) mrb_value;
 
 // Core VM.
-pub extern fn mrb_open() ?*mrb_state;
-pub extern fn mrb_close(mrb: *mrb_state) void;
-pub extern fn mrb_show_version(mrb: *mrb_state) void;
 
 // Compilation and evaluation.
-pub extern fn mrb_ccontext_new(mrb: *mrb_state) ?*mrb_ccontext;
-pub extern fn mrb_ccontext_free(mrb: *mrb_state, cxt: ?*mrb_ccontext) void;
-pub extern fn mrb_ccontext_filename(
-    mrb: *mrb_state,
-    cxt: ?*mrb_ccontext,
-    s: [*c]const u8,
-) [*c]const u8;
-pub extern fn mrb_load_nstring_cxt(
-    mrb: *mrb_state,
-    s: [*c]const u8,
-    len: usize,
-    cxt: ?*mrb_ccontext,
-) mrb_value;
-pub extern fn mrb_parse_nstring(
-    mrb: *mrb_state,
-    s: [*c]const u8,
-    len: usize,
-    cxt: ?*mrb_ccontext,
-) ?*mrb_parser_state;
-pub extern fn mrb_load_exec(
-    mrb: *mrb_state,
-    parser: *mrb_parser_state,
-    cxt: ?*mrb_ccontext,
-) mrb_value;
-pub extern fn mrb_load_irep_buf(
-    mrb: *mrb_state,
-    data: ?*const anyopaque,
-    size: usize,
-) mrb_value;
-pub extern fn mrb_load_irep_buf_cxt(
-    mrb: *mrb_state,
-    data: ?*const anyopaque,
-    size: usize,
-    cxt: ?*mrb_ccontext,
-) mrb_value;
-pub extern fn mrb_parser_free(parser: *mrb_parser_state) void;
-pub extern fn mrb_protect_error(
-    mrb: *mrb_state,
-    body: *const mrb_protect_error_func,
-    userdata: ?*anyopaque,
-    err: *mrb_bool,
-) mrb_value;
 
 // Calls and values.
-pub extern fn mrb_intern(mrb: *mrb_state, s: [*c]const u8, len: usize) mrb_sym;
-pub extern fn mrb_intern_cstr(mrb: *mrb_state, s: [*c]const u8) mrb_sym;
-pub extern fn mrb_funcall_argv(
-    mrb: *mrb_state,
-    val: mrb_value,
-    name: mrb_sym,
-    argc: mrb_int,
-    argv: [*c]const mrb_value,
-) mrb_value;
-pub extern fn mrb_yield_argv(
-    mrb: *mrb_state,
-    block: mrb_value,
-    argc: mrb_int,
-    argv: [*c]const mrb_value,
-) mrb_value;
-pub extern fn mrb_inspect(mrb: *mrb_state, obj: mrb_value) mrb_value;
-pub extern fn mrb_str_new(mrb: *mrb_state, p: [*c]const u8, len: usize) mrb_value;
-pub extern fn mrb_obj_classname(mrb: *mrb_state, obj: mrb_value) [*c]const u8;
-pub extern fn mrb_gc_protect(mrb: *mrb_state, obj: mrb_value) void;
-pub extern fn mrb_range_new(
-    mrb: *mrb_state,
-    start: mrb_value,
-    end: mrb_value,
-    exclude_end: mrb_bool,
-) mrb_value;
-pub extern fn mrb_hash_keys(mrb: *mrb_state, hash: mrb_value) mrb_value;
-pub extern fn mrb_hash_size(mrb: *mrb_state, hash: mrb_value) mrb_int;
 
 // C functions with an environment, used by the high-level callback API.
-pub extern fn mrb_proc_new_cfunc_with_env(
-    mrb: *mrb_state,
-    func: mrb_func_t,
-    argc: mrb_int,
-    argv: [*c]const mrb_value,
-) ?*RProc;
-pub extern fn mrb_proc_cfunc_env_get(mrb: *mrb_state, idx: mrb_int) mrb_value;
 
 // Class/module definition for Zig-implemented methods.
-pub extern fn mrb_define_module(mrb: *mrb_state, name: [*c]const u8) ?*RClass;
-pub extern fn mrb_define_class(
-    mrb: *mrb_state,
-    name: [*c]const u8,
-    super: ?*RClass,
-) ?*RClass;
-pub extern fn mrb_define_module_function(
-    mrb: *mrb_state,
-    cla: ?*RClass,
-    name: [*c]const u8,
-    fun: mrb_func_t,
-    aspec: mrb_aspec,
-) void;
-pub extern fn mrb_define_method(
-    mrb: *mrb_state,
-    cla: ?*RClass,
-    name: [*c]const u8,
-    fun: mrb_func_t,
-    aspec: mrb_aspec,
-) void;
-pub extern fn mrb_define_class_method(
-    mrb: *mrb_state,
-    cla: ?*RClass,
-    name: [*c]const u8,
-    fun: mrb_func_t,
-    aspec: mrb_aspec,
-) void;
 
 // Variadic C API used by callbacks; only called from Zig functions registered
 // with mruby, with format strings fixed at the call site.
-pub extern fn mrb_get_args(mrb: *mrb_state, format: [*:0]const u8, ...) mrb_int;
 
 // Helpers implemented in shim.c.
+
+// High-level callback helpers implemented in shim.c.
+
+// <generated:mruby>
+pub extern fn mrb_open() ?*mrb_state;
+pub extern fn mrb_close(mrb: ?*mrb_state) void;
+pub extern fn mrb_show_version(mrb: ?*mrb_state) void;
+pub extern fn mrb_ccontext_new(mrb: ?*mrb_state) ?*mrb_ccontext;
+pub extern fn mrb_ccontext_free(mrb: ?*mrb_state, cxt: ?*mrb_ccontext) void;
+pub extern fn mrb_ccontext_filename(mrb: ?*mrb_state, c: ?*mrb_ccontext, s: [*c]const u8) [*c]const u8;
+pub extern fn mrb_load_nstring_cxt(mrb: ?*mrb_state, s: [*c]const u8, len: usize, cxt: ?*mrb_ccontext) mrb_value;
+pub extern fn mrb_parse_nstring(?*mrb_state, [*c]const u8, usize, ?*mrb_ccontext) ?*mrb_parser_state;
+pub extern fn mrb_load_exec(mrb: ?*mrb_state, p: ?*mrb_parser_state, c: ?*mrb_ccontext) mrb_value;
+pub extern fn mrb_load_irep_buf(?*mrb_state, ?*const anyopaque, usize) mrb_value;
+pub extern fn mrb_load_irep_buf_cxt(?*mrb_state, ?*const anyopaque, usize, ?*mrb_ccontext) mrb_value;
+pub extern fn mrb_parser_free(?*mrb_parser_state) void;
+pub extern fn mrb_protect_error(mrb: ?*mrb_state, body: ?*const mrb_protect_error_func, userdata: ?*anyopaque, @"error": [*c]mrb_bool) mrb_value;
+pub extern fn mrb_intern(?*mrb_state, [*c]const u8, usize) mrb_sym;
+pub extern fn mrb_intern_cstr(mrb: ?*mrb_state, str: [*c]const u8) mrb_sym;
+pub extern fn mrb_funcall_argv(mrb: ?*mrb_state, val: mrb_value, name: mrb_sym, argc: mrb_int, argv: [*c]const mrb_value) mrb_value;
+pub extern fn mrb_yield_argv(mrb: ?*mrb_state, b: mrb_value, argc: mrb_int, argv: [*c]const mrb_value) mrb_value;
+pub extern fn mrb_inspect(mrb: ?*mrb_state, obj: mrb_value) mrb_value;
+pub extern fn mrb_str_new(mrb: ?*mrb_state, p: [*c]const u8, len: usize) mrb_value;
+pub extern fn mrb_obj_classname(mrb: ?*mrb_state, obj: mrb_value) [*c]const u8;
+pub extern fn mrb_gc_protect(mrb: ?*mrb_state, obj: mrb_value) void;
+pub extern fn mrb_range_new(mrb: ?*mrb_state, start: mrb_value, end: mrb_value, exclude: mrb_bool) mrb_value;
+pub extern fn mrb_hash_keys(mrb: ?*mrb_state, hash: mrb_value) mrb_value;
+pub extern fn mrb_hash_size(mrb: ?*mrb_state, hash: mrb_value) mrb_int;
+pub extern fn mrb_proc_new_cfunc_with_env(mrb: ?*mrb_state, func: mrb_func_t, argc: mrb_int, argv: [*c]const mrb_value) ?*RProc;
+pub extern fn mrb_proc_cfunc_env_get(mrb: ?*mrb_state, idx: mrb_int) mrb_value;
+pub extern fn mrb_define_module(mrb: ?*mrb_state, name: [*c]const u8) ?*RClass;
+pub extern fn mrb_define_class(mrb: ?*mrb_state, name: [*c]const u8, super: ?*RClass) ?*RClass;
+pub extern fn mrb_define_module_function(mrb: ?*mrb_state, cla: ?*RClass, name: [*c]const u8, fun: mrb_func_t, aspec: mrb_aspec) void;
+pub extern fn mrb_define_method(mrb: ?*mrb_state, cla: ?*RClass, name: [*c]const u8, func: mrb_func_t, aspec: mrb_aspec) void;
+pub extern fn mrb_define_class_method(mrb: ?*mrb_state, cla: ?*RClass, name: [*c]const u8, fun: mrb_func_t, aspec: mrb_aspec) void;
+pub extern fn mrb_get_args(mrb: ?*mrb_state, format: mrb_args_format, ...) mrb_int;
+// </generated:mruby>
+
 pub extern fn zruby_value_size() usize;
 pub extern fn zruby_value_align() usize;
 pub extern fn zruby_object_class(mrb: *mrb_state) *RClass;
@@ -211,8 +149,6 @@ pub extern fn zruby_parser_error_message(
 ) [*c]const u8;
 pub extern fn zruby_parser_error_lineno(parser: *const mrb_parser_state, index: usize) c_int;
 pub extern fn zruby_parser_error_column(parser: *const mrb_parser_state, index: usize) c_int;
-
-// High-level callback helpers implemented in shim.c.
 pub extern fn zruby_cptr_value(mrb: *mrb_state, p: ?*anyopaque) mrb_value;
 pub extern fn zruby_cptr(value: mrb_value) ?*anyopaque;
 pub extern fn zruby_range_p(value: mrb_value) bool;

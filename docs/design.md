@@ -64,7 +64,7 @@
 
 ## 5. 关键设计决策
 
-### 5.1 为什么手写绑定，而不是 `@cImport`
+### 5.1 绑定生成与 `@cImport`
 
 实测 Zig 0.16 的 `@cImport` 在 macOS 上无法直接吃下 mruby 4.0 头文件：
 
@@ -72,7 +72,7 @@
 - `RBasic`、`mrb_state` 等含位域，translate-c 会降级成 `opaque`。
 - `mrb_type`、`mrb_integer` 等是 static inline；translate-c 可能声明成 `extern`，但静态库里没有对应符号。
 
-手写声明把依赖收敛到“实际用到的符号 + 一个 8 字节值结构”，可控性更高。shim 只负责 Zig 无法表达的部分，而不是把所有 API 再包一遍。
+因此库代码不引入 `@cImport`。绑定文件采用离线生成：`scripts/generate-bindings.sh` 对 mruby 头文件运行 `zig translate-c`（显式定义 ABI/宏），按 `scripts/bindings.txt` 提取实际使用的函数声明，再渲染 `src/c.template.zig` 生成 `src/c.zig`。`mrb_value` 布局、opaque 类型与 shim 声明保留在模板中人工审阅；CI 的 `--check` 防止生成物漂移。这样既避免 `@cImport` 的平台问题，也避免手写函数签名腐烂。
 
 ### 5.2 ABI 契约
 
@@ -161,6 +161,7 @@ v0.2 起在此之上增加显式的高层回调 API：`defineModuleCallback` / `
 
 - `-Dmruby-prefix` 指定包含 `include/` 与 `lib/` 的前缀，默认 `vendor/mruby/build/host`。
 - `-Dmruby-boxing=word|nan|none` 选择 `mrb_value` 布局，并向 shim 注入对应 C 宏；NAN 需 `MRB_INT64`。
+- `scripts/generate-bindings.sh` 从 mruby 头文件重新生成 `src/c.zig`；`--check` 在 CI 中校验生成物。
 - 为模块添加 mruby include/lib、链接 `mruby`；Linux 额外链接 `m`。
 - 注入 mruby 默认构建宏，编译 `src/shim.c`。
 - 生成 `libzruby.a`、`zruby-example`、测试可执行文件。

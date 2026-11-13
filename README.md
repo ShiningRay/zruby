@@ -27,6 +27,7 @@ mise install   # 可选：安装固定的 Zig/Ruby
 ./scripts/build-mruby.sh
 ./scripts/verify-toolchain.sh
 ./scripts/check-bindings.sh
+./scripts/generate-bindings.sh --check
 zig build test
 zig build run
 ```

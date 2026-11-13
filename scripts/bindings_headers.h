@@ -1,0 +1,11 @@
+#include <mruby.h>
+#include <mruby/class.h>
+#include <mruby/compile.h>
+#include <mruby/error.h>
+#include <mruby/hash.h>
+#include <mruby/irep.h>
+#include <mruby/proc.h>
+#include <mruby/range.h>
+#include <mruby/string.h>
+#include <mruby/value.h>
+#include <mruby/version.h>

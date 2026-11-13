@@ -141,7 +141,7 @@ sizeof(mrb_state)=18856
 ### 3.3 备选方案
 
 1. **全部 API 走 C shim**：最稳，但要为每个函数写包装，且 Zig 侧回调仍需 `mrb_value` 表示。
-2. **生成绑定**：用 `zig translate-c` 生成后人工修补，或写脚本从头文件提取；适合 API 覆盖面扩大后。
+2. **生成绑定**：已采用离线方案——`scripts/generate-bindings.sh` 用 `zig translate-c` 提取 manifest 函数声明，渲染 `src/c.zig`，类型/shim 模板人工审阅；不引入 `@cImport`。
 3. **直接用现有 Zig Ruby 绑定**：可作为后续对比，但版本、构建系统和 mruby 配置不一定匹配本项目目标。
 
 ## 4. 构建与兼容性

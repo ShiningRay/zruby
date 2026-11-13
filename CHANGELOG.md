@@ -10,6 +10,7 @@
   hash iterators, RootedValue/arenaScope, lastException and bounded backtraces.
 - Default `(eval)` filename so compiled code carries debug info for backtraces.
 - Bytecode loading: `VM.loadIrep` / `loadIrepWithOptions`, `mrbc` fixture and regeneration script.
+- Binding generation: `scripts/generate-bindings.sh` renders `src/c.zig` from mruby headers via offline `translate-c`, with CI `--check`.
 - Configurable 64-bit ABI layouts: word, NAN boxing (`MRB_INT64`), and `MRB_NO_BOXING` via `-Dmruby-boxing`.
 - Binding symbol check in CI; Windows MinGW CI with a core-only mruby build profile.
 - Compile-time rejection for `MRB_32BIT` / unsynchronized boxing macros.

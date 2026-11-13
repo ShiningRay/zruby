@@ -56,6 +56,10 @@ jobs:
       - name: Check binding symbols
         run: ./scripts/check-bindings.sh
 
+      - name: Check generated bindings
+        if: runner.os != 'Windows'
+        run: ./scripts/generate-bindings.sh --check
+
       - name: Format check
         run: zig fmt --check build.zig src tests examples
 
@@ -103,6 +107,10 @@ jobs:
 
       - name: Check binding symbols
         run: ./scripts/check-bindings.sh
+
+      - name: Check generated bindings
+        if: runner.os != 'Windows'
+        run: ./scripts/generate-bindings.sh --check
 
       - name: Format check
         run: zig fmt --check build.zig src tests examples

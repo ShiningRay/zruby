@@ -85,13 +85,13 @@
 
 | 方案 | 决定 | 原因 |
 | --- | --- | --- |
-| `zig translate-c` 生成绑定 | 不采用 | macOS mach 头文件、位域 opaque、宏/inline 翻译失败；维护者需手工 patch |
+| `zig translate-c` 生成绑定 | **采用（离线生成）** | 不引入 `@cImport`；`scripts/generate-bindings.sh` 用 translate-c 提取 manifest 中的函数声明，渲染 `src/c.zig`，类型/shim 由模板审阅，CI `--check` 防漂移。 |
 | 导出 `etext/edata/end` | **采用（仅 Linux 链接兼容）** | 预构建 `libmruby.a` 默认启用 `MRB_USE_ETEXT_RO_DATA_P`；Zig 链接器不提供这些符号。zruby 仍用 `MRB_NO_DEFAULT_RO_DATA_P` 编译 shim，避免把 mach-o 头文件带进来，但需要在 Zig 侧导出这三个符号。 |
 | 在 `zig build` 内调 `rake` | 不采用 | 把 Ruby/rake/mruby 子模块耦合进构建；zruby 用显式 `scripts/build-mruby.sh` |
-| 纯 Zig 构建 mruby | 暂缓 | nullstyle 证明可行，但 presym/mrbc/gem 注册/补丁量很大；v0.1 优先绑定正确性 |
-| `mrb_load_irep` 字节码 | 暂缓 | 需要 `mrbc` 构建步骤与资源打包；已列入 M4 |
+| 纯 Zig 构建 mruby | 暂缓 | nullstyle 证明可行，但 presym/mrbc/gem 注册/补丁量很大；当前优先绑定正确性 |
+| `mrb_load_irep` 字节码 | **已采用** | `VM.loadIrep` + `scripts/build-bytecode.sh`，测试嵌入 `.mrb` |
 | 沙箱/worker/资源配额 | 不做 | 属于独立安全产品，超出“嵌入调用 Ruby”范围；文档明确不宣称沙箱 |
-| 高层回调签名推导 | 暂缓 | nullstyle 的设计很好，但涉及可选参数/关键字/block/异常；先保留原始 `mrb_get_args` 逃生口 |
+| 高层回调签名推导 | **已采用（显式）** | `CallbackFn` + `define*Callback`，不自动推导任意签名；保留底层 `mrb_get_args` 逃生口 |
 | mruby Hash 补丁 | 暂不做 | 默认 `MRB_USE_BIGINT` 构建实测宽整数键正常；非 BigInt 配置需单独验证 |
 
 ## 5. 结论

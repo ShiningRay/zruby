@@ -104,6 +104,7 @@ zig build test
 zig build test -Doptimize=ReleaseSafe
 zig build run
 ./scripts/check-bindings.sh
+./scripts/generate-bindings.sh --check
 ```
 
 干净环境：
