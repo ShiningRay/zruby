@@ -92,7 +92,7 @@
 | `mrb_load_irep` 字节码 | **已采用** | `VM.loadIrep` + `scripts/build-bytecode.sh`，测试嵌入 `.mrb` |
 | 沙箱/worker/资源配额 | 不做 | 属于独立安全产品，超出“嵌入调用 Ruby”范围；文档明确不宣称沙箱 |
 | 高层回调签名推导 | **已采用（显式）** | `CallbackFn` + `define*Callback`，不自动推导任意签名；保留底层 `mrb_get_args` 逃生口 |
-| mruby Hash 补丁 | 暂不做 | 默认 `MRB_USE_BIGINT` 构建实测宽整数键正常；非 BigInt 配置需单独验证 |
+| mruby Hash 补丁 | 暂不做 | 默认 `MRB_USE_BIGINT` 构建实测宽整数键正常；新增非 BigInt 64 位回归（`test-nonbigint`）同样通过，32 位 fallback 仍未验证 |
 
 ## 5. 结论
 

@@ -212,6 +212,7 @@ Windows 构建需要 MinGW 工具链；CI 使用 `-Dtarget=x86_64-windows-gnu` �
 - [已有方案调研](docs/prior-art.md)
 - [测试策略与覆盖](docs/testing.md)
 - [Zig/mruby 兼容策略](docs/compatibility.md)
+- [纯 Zig 构建评估](docs/pure-zig-build.md)
 - [变更日志](CHANGELOG.md)
 
 ## 许可证

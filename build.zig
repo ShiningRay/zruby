@@ -41,6 +41,11 @@ pub fn build(b: *std.Build) void {
     {
         @panic("mruby-boxing must be word, nan, or none");
     }
+    const mruby_bigint = b.option(
+        bool,
+        "mruby-bigint",
+        "mruby build has MRB_USE_BIGINT (default true)",
+    ) orelse true;
 
     const mruby_include = lazyPath(b, b.fmt("{s}/include", .{mruby_prefix}));
     const mruby_lib = lazyPath(b, b.fmt("{s}/lib", .{mruby_prefix}));
@@ -71,7 +76,7 @@ pub fn build(b: *std.Build) void {
     zruby_mod.addCMacro("HAVE_MRUBY_IO_GEM", "1");
     zruby_mod.addCMacro("MRB_USE_RATIONAL", "1");
     zruby_mod.addCMacro("MRB_USE_COMPLEX", "1");
-    zruby_mod.addCMacro("MRB_USE_BIGINT", "1");
+    if (mruby_bigint) zruby_mod.addCMacro("MRB_USE_BIGINT", "1");
     zruby_mod.addCMacro("MRB_USE_DEBUG_HOOK", "1");
     zruby_mod.addCMacro("MRB_NO_DEFAULT_RO_DATA_P", "1");
     if (std.mem.eql(u8, mruby_boxing, "nan")) {
@@ -108,6 +113,18 @@ pub fn build(b: *std.Build) void {
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run the test suite");
     test_step.dependOn(&run_tests.step);
+
+    const nonbigint_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/nonbigint.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "zruby", .module = zruby_mod }},
+        }),
+    });
+    const run_nonbigint_tests = b.addRunArtifact(nonbigint_tests);
+    const nonbigint_step = b.step("test-nonbigint", "Run the non-BigInt hash regression test");
+    nonbigint_step.dependOn(&run_nonbigint_tests.step);
 
     const example = b.addExecutable(.{
         .name = "zruby-example",

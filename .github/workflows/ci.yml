@@ -126,3 +126,28 @@ jobs:
 
       - name: Run example
         run: zig build run -Dmruby-boxing=${{ matrix.boxing }}
+
+  nobigint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install rake
+        run: gem install rake --no-document
+
+      - name: Build mruby without BigInt
+        run: MRUBY_CONFIG="$PWD/build_config/zruby-nobigint.rb" ./scripts/build-mruby.sh
+
+      - name: Test non-BigInt hash behavior
+        run: zig build test-nonbigint -Dmruby-bigint=false

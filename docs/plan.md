@@ -129,8 +129,8 @@ zig build
 - [x] 非默认配置的编译期校验：`src/shim.c` 对 `MRB_32BIT` / 未声明的 boxing 布局直接 `#error`；
 - [x] 支持 `MRB_NAN_BOXING`（`MRB_INT64`）与 `MRB_NO_BOXING` 的配置化绑定，`-Dmruby-boxing=nan|none` 已实测；
 - [x] 从 mruby 头文件生成 `c.zig`：`scripts/generate-bindings.sh` 用 `zig translate-c` + `src/c.template.zig` + `scripts/bindings.txt` 生成，CI `--check` 防漂移；
-- [ ] 评估纯 Zig 的 mruby 构建（presym、host `mrbc`、gem registry），去掉 Ruby/rake 依赖；
-- [ ] 非 BigInt 配置的 Hash 行为负向测试。
+- [x] 评估纯 Zig 的 mruby 构建：结论为暂不替换，原因与拆分见 [纯 Zig 构建评估](pure-zig-build.md)；
+- [x] 非 BigInt 配置的 Hash 回归测试：`build_config/zruby-nobigint.rb` + `zig build test-nonbigint -Dmruby-bigint=false`；64 位 `mrb_int` 下宽整数键正常，32 位 fallback 仍未验证。
 
 绑定生成器使用 translate-c 的离线结果，不引入 `@cImport`；类型定义和 shim 声明仍由模板审阅。纯 Zig 构建属于独立大型工程；Windows 使用 MinGW/GNU 目标验证，未宣称 MSVC 目标可用。当前支持 word/NAN/no-boxing 三种 64 位布局，`MRB_32BIT` 仍明确拒绝。
 

@@ -76,6 +76,7 @@
 
 - word（默认）、`MRB_NAN_BOXING` + `MRB_INT64`、`MRB_NO_BOXING` 三套 mruby 构建均跑完整 93 测试。
 - `MRB_32BIT` / 未同步宏的配置在 shim 编译期失败。
+- 非 BigInt 构建跑 `zig build test-nonbigint -Dmruby-bigint=false`，覆盖 64 位宽整数 hash 键。
 
 ## 3. Ruby 套件
 

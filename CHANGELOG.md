@@ -14,6 +14,7 @@
 - Configurable 64-bit ABI layouts: word, NAN boxing (`MRB_INT64`), and `MRB_NO_BOXING` via `-Dmruby-boxing`.
 - Binding symbol check in CI; Windows MinGW CI with a core-only mruby build profile.
 - Compile-time rejection for `MRB_32BIT` / unsynchronized boxing macros.
+- Non-BigInt 64-bit hash regression (`zig build test-nonbigint -Dmruby-bigint=false`).
 - Test suite: 93 tests (88 Zig + 5 Ruby integration suites).
 
 ## 0.1.0 (2026-11-13)
