@@ -161,6 +161,8 @@ const value = try vm.loadIrep(bytecode);
 
 `zig build` 安装 `zig-out/lib/libzruby.a` 与 `zig-out/bin/zruby-example`。
 
+Windows 构建需要 MinGW 工具链；CI 使用 `-Dtarget=x86_64-windows-gnu` 并通过 `build_config/zruby-windows.rb` 构建不含 stdlib-io 的 mruby。MSVC 目标尚未验证。
+
 ## API 速览
 
 | 类型/方法 | 作用 |
@@ -189,7 +191,7 @@ const value = try vm.loadIrep(bytecode);
 - `VM.eval` 只接受不含内部 NUL 的源码；内部会复制并补 NUL 哨兵。Ruby 字符串本身仍可包含 NUL，`toString` 会按长度精确拷贝。
 - 当前不提供 Fiber、完整类型绑定或自动生成的 C API。数组/哈希操作走 Ruby 方法，适合正确性优先的场景。
 - mruby 不是安全沙箱。不要执行不受信任的 Ruby 代码。
-- 已在 macOS arm64 验证；Linux/Windows 尚未在本地验证。
+- 本地在 macOS arm64 验证；CI 覆盖 Ubuntu 与 Windows（MinGW，`x86_64-windows-gnu`）。Windows MSVC 目标未验证。
 
 ## 文档
 

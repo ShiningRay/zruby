@@ -117,6 +117,6 @@ zig build run
 - Fiber 的 Zig 侧调度、非局部 return。
 - `mrbc` 字节码加载与 `mrb_load_irep`。
 - 沙箱、资源配额、worker 进程、信号/ORPHAN 行为。
-- Windows/Linux 真机运行（CI 配置存在，远程尚未执行）。
+- Windows MSVC 目标（当前 CI 使用 MinGW/GNU）。
 - 上游 mruby ISO conformance 全量套件；目前是自建 Ruby 冒烟套件。
 - OOM 故障注入、长期 fuzz、性能基准。

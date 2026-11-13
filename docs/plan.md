@@ -28,7 +28,7 @@
 | M1 核心绑定 | 已完成 | `src/c.zig`、`src/shim.c`、`src/zruby.zig` | `zig build test` 通过 |
 | M2 可用性 | 已完成 | 示例、README、构建脚本、CI | `zig build run` 输出正确 |
 | M3 发布准备 | 已完成 | 版本号、变更日志、Git tag、远程仓库 | 干净 clone 后按 README 可复现 |
-| M4 扩展 | 进行中 | 高层回调、更多类型、字节码 | 新增测试与文档 |
+| M4 扩展 | 主体完成 | 高层回调、更多类型、字节码、Windows CI | 新增测试与文档；绑定生成器/boxing/纯 Zig 构建待后续 |
 
 ## 4. 已完成的实施步骤
 
@@ -124,14 +124,14 @@ zig build
 ### 6.4 跨平台与构建
 
 - [x] Linux CI 实跑（Ubuntu + macOS 矩阵）；
+- [x] Windows CI：MinGW 构建 mruby，Zig `x86_64-windows-gnu` 目标，Debug/ReleaseSafe/示例全绿；
 - [x] 绑定符号一致性检查：`scripts/check-bindings.sh` 对照 `libmruby.a` 校验 `src/c.zig` 的 `mrb_*` 声明；
-- [ ] Windows CI；
 - [ ] 从 mruby 头文件生成 `c.zig`；
 - [ ] 支持 `MRB_NAN_BOXING` / `MRB_NO_BOXING` 的配置化绑定；
 - [ ] 评估纯 Zig 的 mruby 构建（presym、host `mrbc`、gem registry），去掉 Ruby/rake 依赖；
 - [ ] 非 BigInt 配置的 Hash 行为负向测试。
 
-Windows、绑定生成器、boxing 配置和纯 Zig 构建属于独立的大型工程，当前版本保持“手写最小绑定 + 默认 word-boxing”的边界，不在未验证的情况下宣称支持。
+绑定生成器、boxing 配置和纯 Zig 构建属于独立的大型工程；Windows 使用 MinGW/GNU 目标验证，未宣称 MSVC 目标可用。当前版本保持“手写最小绑定 + 默认 word-boxing”的边界。
 
 ## 7. 风险与依赖
 

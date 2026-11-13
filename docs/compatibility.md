@@ -46,7 +46,7 @@ zruby 当前实测基线：**Zig 0.16.0 + mruby 4.0.0**，93/93 测试通过。0
 ### Release gate（阻塞）
 
 - 精确 Zig + 精确 mruby。
-- macOS + Linux。
+- macOS + Linux + Windows（MinGW，Zig `x86_64-windows-gnu`）。
 - Debug 与 ReleaseSafe。
 - `zig fmt --check`。
 - `zig build test`、`zig build`、`zig build run`。
@@ -88,9 +88,11 @@ zruby 当前实测基线：**Zig 0.16.0 + mruby 4.0.0**，93/93 测试通过。0
 
 | zruby | Zig | mruby | 状态 |
 | --- | --- | --- | --- |
-| 0.1.x（当前） | 0.16.0 | 4.0.0 | release gate；93/93 通过 |
+| 0.1.x（当前） | 0.16.0 | 4.0.0 | release gate；93/93 通过；macOS/Linux/Windows(MinGW) |
 | 0.2（计划） | 0.17.1 | 4.0.0 | 迁移目标；未验证 |
 | canary | Zig master | mruby 4.0.0 / 4.1 rc | 非阻塞探测 |
+
+Windows 验证使用 MinGW 构建 mruby，并以 `-Dtarget=x86_64-windows-gnu` 编译/测试；MSVC 目标未验证。
 
 ## 9. 消费方建议
 

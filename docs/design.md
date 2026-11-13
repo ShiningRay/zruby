@@ -233,12 +233,12 @@ pub const Value = struct {
 - 93 个测试（含 5 个 Ruby 集成套件）覆盖 ABI、VM 生命周期、求值/诊断、值语义、回调、GC/arena、多线程 VM、类/模块定义、数组/哈希、NUL/UTF-8、跨 VM 拒绝等边界。测试矩阵见 [测试策略](testing.md)。
 - `zig build test` 通过 93/93；`zig build test -Doptimize=ReleaseSafe` 同样通过。
 - `zig build run` 端到端运行 `examples/hello.rb`，验证 `Zig.square(7)` 与 Ruby 方法调用。
+- CI 覆盖 macOS、Ubuntu 与 Windows（MinGW，`x86_64-windows-gnu`）。
 
 后续补充：
 
-- 回调抛 Ruby 异常、GC 压力、arena 回收、错误消息非泄漏。
-- Linux/Windows CI 的真实运行结果。
-- 与自定义 mruby 配置的负向测试（应明确失败，而不是静默错读）。
+- Windows MSVC 目标与自定义 mruby 配置的负向测试（应明确失败，而不是静默错读）。
+- `MRB_NAN_BOXING` / `MRB_NO_BOXING` 的配置化绑定。
 
 ## 8. 风险与缓解
 
