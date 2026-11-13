@@ -59,6 +59,9 @@ if [ ! -d "$MRUBY_DIR/src" ]; then
 fi
 
 echo "building mruby in $MRUBY_DIR"
+if [ -z "${MRUBY_CONFIG:-}" ] && [ "${OS:-}" = "Windows_NT" ]; then
+  MRUBY_CONFIG="$ROOT/build_config/zruby-windows.rb"
+fi
 (
   cd "$MRUBY_DIR"
   if [ -n "${MRUBY_CONFIG:-}" ]; then
@@ -87,10 +90,14 @@ MRUBY_BIN="$MRUBY_DIR/build/host/bin/mruby"
 if [ ! -x "$MRUBY_BIN" ] && [ -x "$MRUBY_BIN.exe" ]; then
   MRUBY_BIN="$MRUBY_BIN.exe"
 fi
-actual_version="$("$MRUBY_BIN" -v | awk '{print $2}')"
-if [ "$actual_version" != "$MRUBY_VERSION" ]; then
-  echo "mruby version mismatch: expected $MRUBY_VERSION, found $actual_version" >&2
-  exit 1
+if [ -x "$MRUBY_BIN" ]; then
+  actual_version="$("$MRUBY_BIN" -v | awk '{print $2}')"
+  if [ "$actual_version" != "$MRUBY_VERSION" ]; then
+    echo "mruby version mismatch: expected $MRUBY_VERSION, found $actual_version" >&2
+    exit 1
+  fi
+else
+  echo "mruby CLI not built; skipping binary version check"
 fi
 
 echo "mruby built: $LIB"
