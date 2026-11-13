@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-11-13)
 
 - Zig 0.16.0 + mruby 4.0.0 release baseline.
 - VM/Value API: eval, call, arrays/hashes, callbacks, error diagnostics, GC arena.
