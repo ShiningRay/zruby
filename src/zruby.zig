@@ -52,6 +52,7 @@ pub const VM = struct {
     allocator: std.mem.Allocator,
     last_error: ?[]u8 = null,
     last_error_class: ?[]u8 = null,
+    last_exception: ?c.mrb_value = null,
     callbacks: std.ArrayListUnmanaged(*CallbackEntry) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) Error!VM {
@@ -94,7 +95,7 @@ pub const VM = struct {
         const source_z = self.allocator.dupeZ(u8, source) catch return error.OutOfMemory;
         defer self.allocator.free(source_z);
 
-        var data = EvalData{ .source = source_z, .filename = options.filename };
+        var data = EvalData{ .source = source_z, .filename = options.filename orelse "(eval)" };
         var prepare_state: c.mrb_bool = false;
         _ = c.mrb_protect_error(self.raw, &prepareBody, &data, &prepare_state);
 
@@ -121,7 +122,7 @@ pub const VM = struct {
         }
 
         if (data.parse_failed) {
-            self.setSyntaxError(&data, options.filename);
+            self.setSyntaxError(&data);
             data.cleanup(self);
             self.arenaRestore(mark);
             restored = true;
@@ -167,7 +168,7 @@ pub const VM = struct {
         return .{ .vm = self, .raw = result };
     }
 
-    fn setSyntaxError(self: *VM, data: *EvalData, filename: ?[:0]const u8) void {
+    fn setSyntaxError(self: *VM, data: *EvalData) void {
         const parser = data.parser orelse {
             self.setLastError("syntax error", "SyntaxError");
             return;
@@ -182,7 +183,7 @@ pub const VM = struct {
         const formatted = std.fmt.allocPrint(
             self.allocator,
             "{s}:{d}:{d}: {s}",
-            .{ filename orelse "(eval)", line, column, message },
+            .{ data.filename, line, column, message },
         ) catch null;
         if (formatted) |text| {
             self.setLastError(text, "SyntaxError");
@@ -202,6 +203,34 @@ pub const VM = struct {
         return self.last_error_class;
     }
 
+    /// The last captured Ruby exception object, if the failure produced one.
+    /// The value is GC-protected until the next operation clears diagnostics.
+    pub fn lastException(self: *VM) ?Value {
+        const raw = self.last_exception orelse return null;
+        return .{ .vm = self, .raw = raw };
+    }
+
+    /// A bounded, joined Ruby backtrace for the last exception. Returns null
+    /// when there is no exception or Ruby reports no backtrace.
+    pub fn lastBacktrace(self: *VM, allocator: std.mem.Allocator) Error!?[]u8 {
+        const raw = self.last_exception orelse return null;
+        const exception = Value{ .vm = self, .raw = raw };
+        const backtrace = exception.invoke("backtrace", &.{}, false) catch return null;
+        if (backtrace.isNil()) return null;
+
+        const separator = try makeValueInternal(self, .{ .string = "\n" }, false);
+        const joined = backtrace.invoke("join", &.{separator}, false) catch return null;
+        const text = try joined.toString(allocator);
+        if (text.len <= 4096) return text;
+
+        const bounded = allocator.dupe(u8, text[0..4096]) catch {
+            allocator.free(text);
+            return error.OutOfMemory;
+        };
+        allocator.free(text);
+        return bounded;
+    }
+
     pub fn arenaSave(self: *VM) ArenaMark {
         return .{ .index = c.zruby_arena_save(self.raw) };
     }
@@ -213,6 +242,19 @@ pub const VM = struct {
     /// Root a value for subsequent calls that may trigger GC.
     pub fn protect(self: *VM, value: Value) void {
         c.mrb_gc_protect(self.raw, value.raw);
+    }
+
+    /// Create a rooted handle. The value stays protected until an enclosing
+    /// arena restore or VM shutdown; the handle itself owns no extra memory.
+    pub fn root(self: *VM, value: Value) RootedValue {
+        std.debug.assert(value.vm == self);
+        self.protect(value);
+        return .{ .vm = self, .value = value };
+    }
+
+    /// Open an explicit GC arena scope. Call `deinit` to restore the arena.
+    pub fn arenaScope(self: *VM) ArenaScope {
+        return .{ .vm = self, .mark = self.arenaSave() };
     }
 
     /// The root Object class, useful as an explicit superclass.
@@ -352,12 +394,7 @@ pub const VM = struct {
         aspec: c.mrb_aspec,
     ) Error!void {
         self.clearLastError();
-        const entry = self.allocator.create(CallbackEntry) catch return error.OutOfMemory;
-        entry.* = .{ .vm = self, .function = function };
-        self.callbacks.append(self.allocator, entry) catch {
-            self.allocator.destroy(entry);
-            return error.OutOfMemory;
-        };
+        const entry = try self.allocateCallbackEntry(function);
 
         var data = CallbackDefineData{
             .entry = entry,
@@ -376,11 +413,42 @@ pub const VM = struct {
         }
     }
 
+    /// Create a standalone Ruby Proc backed by a high-level Zig callback.
+    pub fn createCallbackProc(self: *VM, function: CallbackFn) Error!Value {
+        self.clearLastError();
+        const entry = try self.allocateCallbackEntry(function);
+        var data = CallbackProcData{ .entry = entry };
+        var state: c.mrb_bool = false;
+        const result = c.mrb_protect_error(self.raw, &callbackProcBody, &data, &state);
+        if (state or c.zruby_has_exc(self.raw)) {
+            const exc = if (state) result else c.zruby_get_exc(self.raw);
+            self.captureException(exc);
+            c.zruby_clear_exc(self.raw);
+            return error.RubyException;
+        }
+        if (c.zruby_nil_p(result) or c.zruby_undef_p(result)) {
+            self.setLastError("failed to create Ruby Proc", null);
+            return error.RubyException;
+        }
+        return .{ .vm = self, .raw = result };
+    }
+
+    fn allocateCallbackEntry(self: *VM, function: CallbackFn) Error!*CallbackEntry {
+        const entry = self.allocator.create(CallbackEntry) catch return error.OutOfMemory;
+        entry.* = .{ .vm = self, .function = function };
+        self.callbacks.append(self.allocator, entry) catch {
+            self.allocator.destroy(entry);
+            return error.OutOfMemory;
+        };
+        return entry;
+    }
+
     fn clearLastError(self: *VM) void {
         if (self.last_error) |msg| self.allocator.free(msg);
         if (self.last_error_class) |name| self.allocator.free(name);
         self.last_error = null;
         self.last_error_class = null;
+        self.last_exception = null;
     }
 
     fn setLastError(self: *VM, message: []const u8, class_name: ?[]const u8) void {
@@ -414,7 +482,37 @@ pub const VM = struct {
             const z: [*:0]const u8 = @ptrCast(class_name);
             self.last_error_class = self.allocator.dupe(u8, std.mem.span(z)) catch null;
         }
+        if (!c.zruby_nil_p(exc)) {
+            self.last_exception = exc;
+            c.mrb_gc_protect(self.raw, exc);
+        }
         if (c.zruby_has_exc(self.raw)) c.zruby_clear_exc(self.raw);
+    }
+};
+
+/// A GC-rooted handle created by `VM.root`. It is valid until an enclosing
+/// arena restore or VM shutdown; the handle itself has no destructor.
+pub const RootedValue = struct {
+    vm: *VM,
+    value: Value,
+
+    pub fn get(self: *const RootedValue) Value {
+        std.debug.assert(self.vm == self.value.vm);
+        return self.value;
+    }
+};
+
+/// An explicit arena scope. `deinit` restores the arena mark and invalidates
+/// values created or protected after the scope was opened.
+pub const ArenaScope = struct {
+    vm: *VM,
+    mark: ArenaMark,
+    active: bool = true,
+
+    pub fn deinit(self: *ArenaScope) void {
+        std.debug.assert(self.active);
+        self.vm.arenaRestore(self.mark);
+        self.active = false;
     }
 };
 
@@ -447,6 +545,20 @@ pub const Value = struct {
 
     pub fn fromSymbol(vm: *VM, name: []const u8) Error!Value {
         return makeValue(vm, .{ .symbol = name });
+    }
+
+    pub fn fromRange(vm: *VM, start: Value, finish: Value, exclude_end: bool) Error!Value {
+        if (start.vm != vm or finish.vm != vm) return error.InvalidType;
+        return makeValue(vm, .{ .range = .{
+            .start = start.raw,
+            .finish = finish.raw,
+            .exclude = exclude_end,
+        } });
+    }
+
+    /// Create a Ruby Proc backed by a high-level Zig callback.
+    pub fn fromCallback(vm: *VM, function: CallbackFn) Error!Value {
+        return vm.createCallbackProc(function);
     }
 
     pub fn isNil(self: Value) bool {
@@ -485,8 +597,37 @@ pub const Value = struct {
         return c.zruby_symbol_p(self.raw);
     }
 
+    pub fn isRange(self: Value) bool {
+        return c.zruby_range_p(self.raw);
+    }
+
+    pub fn isProc(self: Value) bool {
+        return c.zruby_proc_p(self.raw);
+    }
+
+    pub fn isObject(self: Value) bool {
+        return c.zruby_object_p(self.raw);
+    }
+
+    /// Convenience predicate for the default mruby Time class. Subclasses are
+    /// not matched; use `className` when that distinction matters.
+    pub fn isTime(self: Value) bool {
+        const name = c.mrb_obj_classname(self.vm.raw, self.raw);
+        if (name == null) return false;
+        const z: [*:0]const u8 = @ptrCast(name);
+        return std.mem.eql(u8, std.mem.span(z), "Time");
+    }
+
     pub fn isException(self: Value) bool {
         return c.zruby_exception_p(self.raw);
+    }
+
+    /// Copy the Ruby class name into `allocator`.
+    pub fn className(self: Value, allocator: std.mem.Allocator) Error![]u8 {
+        const name = c.mrb_obj_classname(self.vm.raw, self.raw);
+        if (name == null) return error.NullPointer;
+        const z: [*:0]const u8 = @ptrCast(name);
+        return allocator.dupe(u8, std.mem.span(z));
     }
 
     /// Ruby truthiness: everything except nil and false is truthy.
@@ -523,8 +664,51 @@ pub const Value = struct {
     /// Call a Ruby method with `args`. The method name is looked up as a
     /// symbol on every call; cache symbols yourself for hot paths.
     pub fn call(self: Value, method: []const u8, call_args: []const Value) Error!Value {
+        // mruby's Proc#call is a tail call in the VM. Invoking it through
+        // mrb_funcall_argv from C can lose the result, so use the yield path.
+        if (self.isProc() and
+            (std.mem.eql(u8, method, "call") or
+                std.mem.eql(u8, method, "[]") or
+                std.mem.eql(u8, method, "yield")))
+        {
+            return self.callProc(call_args);
+        }
+        return self.invoke(method, call_args, true);
+    }
+
+    /// Invoke this Proc directly, bypassing Proc#call dispatch.
+    pub fn callProc(self: Value, call_args: []const Value) Error!Value {
+        if (!self.isProc()) return error.InvalidType;
         const vm = self.vm;
         vm.clearLastError();
+
+        const raw_args = try vm.allocator.alloc(c.mrb_value, call_args.len);
+        defer vm.allocator.free(raw_args);
+        for (call_args, 0..) |arg, i| {
+            if (arg.vm != vm) return error.InvalidType;
+            raw_args[i] = arg.raw;
+        }
+
+        var data = ProcCallData{ .proc = self.raw, .args = raw_args };
+        var state: c.mrb_bool = false;
+        const result = c.mrb_protect_error(vm.raw, &procCallBody, &data, &state);
+        if (state or c.zruby_has_exc(vm.raw)) {
+            const exc = if (state) result else c.zruby_get_exc(vm.raw);
+            vm.captureException(exc);
+            c.zruby_clear_exc(vm.raw);
+            return error.RubyException;
+        }
+        return .{ .vm = vm, .raw = result };
+    }
+
+    fn invoke(
+        self: Value,
+        method: []const u8,
+        call_args: []const Value,
+        clear_errors: bool,
+    ) Error!Value {
+        const vm = self.vm;
+        if (clear_errors) vm.clearLastError();
 
         const raw_args = try vm.allocator.alloc(c.mrb_value, call_args.len);
         defer vm.allocator.free(raw_args);
@@ -573,6 +757,59 @@ pub const Value = struct {
         const length = try self.call("length", &.{});
         return length.asInt();
     }
+
+    pub fn hashLen(self: Value) Error!i64 {
+        if (!self.isHash()) return error.InvalidType;
+        return self.arrayLen();
+    }
+
+    /// Return a new Ruby array containing the hash keys.
+    pub fn hashKeys(self: Value) Error!Value {
+        if (!self.isHash()) return error.InvalidType;
+        return self.call("keys", &.{});
+    }
+
+    pub fn arrayIterator(self: Value) ArrayIterator {
+        return .{ .array = self };
+    }
+
+    pub fn hashIterator(self: Value) Error!HashIterator {
+        return .{ .hash = self, .keys = try self.hashKeys() };
+    }
+};
+
+pub const ArrayIterator = struct {
+    array: Value,
+    index: i64 = 0,
+
+    pub fn next(self: *ArrayIterator) Error!?Value {
+        if (!self.array.isArray()) return error.InvalidType;
+        const length = try self.array.arrayLen();
+        if (self.index >= length) return null;
+        const value = try self.array.get(self.index);
+        self.index += 1;
+        return value;
+    }
+};
+
+pub const HashEntry = struct {
+    key: Value,
+    value: Value,
+};
+
+pub const HashIterator = struct {
+    hash: Value,
+    keys: Value,
+    index: i64 = 0,
+
+    pub fn next(self: *HashIterator) Error!?HashEntry {
+        if (!self.hash.isHash()) return error.InvalidType;
+        const length = try self.keys.arrayLen();
+        if (self.index >= length) return null;
+        const key = try self.keys.get(self.index);
+        self.index += 1;
+        return .{ .key = key, .value = try self.hash.hashGet(key) };
+    }
 };
 
 /// Argument spec helpers mirroring MRB_ARGS_*.
@@ -596,7 +833,7 @@ pub const args = struct {
 
 const EvalData = struct {
     source: [:0]const u8,
-    filename: ?[:0]const u8,
+    filename: [:0]const u8,
     cxt: ?*c.mrb_ccontext = null,
     parser: ?*c.mrb_parser_state = null,
     parse_failed: bool = false,
@@ -619,9 +856,7 @@ fn prepareBody(mrb: ?*c.mrb_state, userdata: ?*anyopaque) callconv(.c) c.mrb_val
         return c.zruby_nil_value();
     };
     data.cxt = cxt;
-    if (data.filename) |filename| {
-        _ = c.mrb_ccontext_filename(state, cxt, filename.ptr);
-    }
+    _ = c.mrb_ccontext_filename(state, cxt, data.filename.ptr);
     c.zruby_cxt_capture_errors(cxt);
 
     const parser = c.mrb_parse_nstring(state, data.source.ptr, data.source.len, cxt) orelse {
@@ -663,6 +898,26 @@ fn callBody(mrb: ?*c.mrb_state, userdata: ?*anyopaque) callconv(.c) c.mrb_value 
         state,
         data.receiver,
         symbol,
+        @intCast(data.args.len),
+        data.args.ptr,
+    );
+    c.mrb_gc_protect(state, result);
+    return result;
+}
+
+const ProcCallData = struct {
+    proc: c.mrb_value,
+    args: []const c.mrb_value,
+};
+
+fn procCallBody(mrb: ?*c.mrb_state, userdata: ?*anyopaque) callconv(.c) c.mrb_value {
+    const data: *ProcCallData = @ptrCast(@alignCast(userdata orelse unreachable));
+    const state = mrb orelse unreachable;
+    c.mrb_gc_protect(state, data.proc);
+    for (data.args) |arg| c.mrb_gc_protect(state, arg);
+    const result = c.mrb_yield_argv(
+        state,
+        data.proc,
         @intCast(data.args.len),
         data.args.ptr,
     );
@@ -748,6 +1003,27 @@ const CallbackDefineData = struct {
     kind: CallbackKind,
     aspec: c.mrb_aspec,
 };
+
+const CallbackProcData = struct {
+    entry: *CallbackEntry,
+};
+
+fn callbackProcBody(mrb: ?*c.mrb_state, userdata: ?*anyopaque) callconv(.c) c.mrb_value {
+    const data: *CallbackProcData = @ptrCast(@alignCast(userdata orelse unreachable));
+    const state = mrb orelse unreachable;
+
+    var env = c.zruby_cptr_value(state, data.entry);
+    const proc = c.mrb_proc_new_cfunc_with_env(
+        state,
+        &callbackTrampoline,
+        1,
+        &env,
+    ) orelse return c.zruby_nil_value();
+    c.zruby_proc_set_env_mid(proc, c.mrb_intern(state, "call", 4));
+    const value = c.zruby_proc_value(proc);
+    c.mrb_gc_protect(state, value);
+    return value;
+}
 
 fn callbackDefineBody(mrb: ?*c.mrb_state, userdata: ?*anyopaque) callconv(.c) c.mrb_value {
     const data: *CallbackDefineData = @ptrCast(@alignCast(userdata orelse unreachable));
@@ -864,6 +1140,11 @@ const ValueData = union(enum) {
     float: c.mrb_float,
     string: []const u8,
     symbol: []const u8,
+    range: struct {
+        start: c.mrb_value,
+        finish: c.mrb_value,
+        exclude: c.mrb_bool,
+    },
 };
 
 fn valueBody(mrb: ?*c.mrb_state, userdata: ?*anyopaque) callconv(.c) c.mrb_value {
@@ -874,13 +1155,18 @@ fn valueBody(mrb: ?*c.mrb_state, userdata: ?*anyopaque) callconv(.c) c.mrb_value
         .float => |f| c.zruby_float_value(state, f),
         .string => |s| c.mrb_str_new(state, s.ptr, s.len),
         .symbol => |s| c.zruby_symbol_value(state, c.mrb_intern(state, s.ptr, s.len)),
+        .range => |r| c.mrb_range_new(state, r.start, r.finish, r.exclude),
     };
     c.mrb_gc_protect(state, value);
     return value;
 }
 
 fn makeValue(vm: *VM, data: ValueData) Error!Value {
-    vm.clearLastError();
+    return makeValueInternal(vm, data, true);
+}
+
+fn makeValueInternal(vm: *VM, data: ValueData, clear_errors: bool) Error!Value {
+    if (clear_errors) vm.clearLastError();
     var payload = data;
     var state: c.mrb_bool = false;
     const result = c.mrb_protect_error(vm.raw, &valueBody, &payload, &state);

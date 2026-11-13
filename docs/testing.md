@@ -1,6 +1,6 @@
 # 测试策略与覆盖
 
-当前 `tests/all.zig` 是测试根，按主题拆成多个文件；每个测试使用独立 VM 和 `std.testing.allocator`，错误消息、字符串拷贝与 VM 资源泄漏由测试分配器兜底。共 **80 个测试声明：75 个 Zig 测试 + 5 个 Ruby 集成套件**。
+当前 `tests/all.zig` 是测试根，按主题拆成多个文件；每个测试使用独立 VM 和 `std.testing.allocator`，错误消息、字符串拷贝与 VM 资源泄漏由测试分配器兜底。共 **89 个测试声明：84 个 Zig 测试 + 5 个 Ruby 集成套件**。
 
 ## 1. 测试分层
 
@@ -30,6 +30,7 @@
 - 语法错误文件名/行号/列；`SyntaxError` 类。
 - `RuntimeError`、`ArgumentError`、`TypeError`、`ZeroDivisionError`、`NoMethodError`、`LocalJumpError`。
 - Ruby 内部 rescue/ensure 不向 Zig 冒泡；嵌套调用异常；连续错误覆盖；成功操作清空诊断。
+- `lastException` 保留异常对象；`lastBacktrace` 返回不超过 4096 字节的 backtrace；语法错误无异常对象。
 
 ### 值
 
@@ -42,6 +43,11 @@
 - 数组负索引、越界、赋值扩展、长度；哈希字符串/symbol/宽整数键、缺失键、nil 值、增删。
 - `Value.call` 的 nil/true/false/string/float/运算符/超过 8 个参数。
 - 异常对象 `isException` + `inspect`。
+- Range 构造、inspect、`to_a`；跨 VM 端点拒绝。
+- 回调转为 Ruby Proc；Ruby 侧 `Proc#call` 与 Zig 侧 `Value.call("call")`（内部走 yield 路径）。
+- Time/custom object 反射与 `className`。
+- 数组/哈希迭代器、`hashKeys`、`hashLen`。
+- `RootedValue` 跨 GC、`arenaScope` 恢复。
 
 ### 回调
 
@@ -96,7 +102,7 @@ zig build test
 zig build run
 ```
 
-当前结果：**80/80** 通过（Debug 与 ReleaseSafe）；干净目录同步后同样通过。
+当前结果：**89/89** 通过（Debug 与 ReleaseSafe）；干净目录同步后同样通过。
 
 ## 6. 尚未覆盖
 

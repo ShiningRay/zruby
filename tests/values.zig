@@ -302,3 +302,153 @@ test "Value.call supports more than eight arguments" {
     const result = try lambda.call("call", &args);
     try std.testing.expectEqual(@as(i64, 45), try result.asInt());
 }
+
+test "ranges can be constructed and inspected" {
+    var vm = try newVM();
+    defer vm.deinit();
+
+    const range = try zruby.Value.fromRange(
+        &vm,
+        try zruby.Value.fromInt(&vm, 1),
+        try zruby.Value.fromInt(&vm, 5),
+        false,
+    );
+    try std.testing.expect(range.isRange());
+    const inspected = try range.inspect();
+    defer allocator.free(inspected);
+    try std.testing.expectEqualStrings("1..5", inspected);
+
+    const array = try range.call("to_a", &.{});
+    try std.testing.expectEqual(@as(i64, 5), try array.arrayLen());
+
+    const exclusive = try zruby.Value.fromRange(
+        &vm,
+        try zruby.Value.fromInt(&vm, 1),
+        try zruby.Value.fromInt(&vm, 5),
+        true,
+    );
+    const exclusive_inspected = try exclusive.inspect();
+    defer allocator.free(exclusive_inspected);
+    try std.testing.expectEqualStrings("1...5", exclusive_inspected);
+
+    var other = try newVM();
+    defer other.deinit();
+    try std.testing.expectError(
+        error.InvalidType,
+        zruby.Value.fromRange(
+            &vm,
+            try zruby.Value.fromInt(&vm, 1),
+            try zruby.Value.fromInt(&other, 5),
+            false,
+        ),
+    );
+}
+
+fn procAdd(vm: *zruby.VM, values: []const zruby.Value) zruby.Error!zruby.Value {
+    return zruby.Value.fromInt(vm, try values[0].asInt() + try values[1].asInt());
+}
+
+fn makeProcCallback(vm: *zruby.VM, values: []const zruby.Value) zruby.Error!zruby.Value {
+    _ = values;
+    return zruby.Value.fromCallback(vm, &procAdd);
+}
+
+test "proc callback called from Ruby" {
+    var vm = try newVM();
+    defer vm.deinit();
+
+    const module = try vm.defineModule("ProcFactory");
+    try vm.defineModuleCallback(module, "makeProc", &makeProcCallback, zruby.args.none());
+    const result = try vm.eval("ProcFactory.makeProc.call(20, 22)");
+    try std.testing.expectEqual(@as(i64, 42), try result.asInt());
+}
+
+test "callbacks can be exposed as Ruby Procs" {
+    var vm = try newVM();
+    defer vm.deinit();
+
+    const proc = try zruby.Value.fromCallback(&vm, &procAdd);
+    try std.testing.expect(proc.isProc());
+    const result = try proc.call("call", &.{
+        try zruby.Value.fromInt(&vm, 20),
+        try zruby.Value.fromInt(&vm, 22),
+    });
+    try std.testing.expectEqual(@as(i64, 42), try result.asInt());
+
+    const inspected = try proc.inspect();
+    defer allocator.free(inspected);
+    try std.testing.expect(std.mem.indexOf(u8, inspected, "Proc") != null);
+}
+
+test "Time and custom objects expose type reflection" {
+    var vm = try newVM();
+    defer vm.deinit();
+
+    const time = try vm.eval("Time.now");
+    try std.testing.expect(time.isTime());
+    try std.testing.expect(!time.isObject());
+    const time_class = try time.className(allocator);
+    defer allocator.free(time_class);
+    try std.testing.expectEqualStrings("Time", time_class);
+
+    const object = try vm.eval("Object.new");
+    try std.testing.expect(object.isObject());
+    try std.testing.expect(!object.isTime());
+    const object_class = try object.className(allocator);
+    defer allocator.free(object_class);
+    try std.testing.expectEqualStrings("Object", object_class);
+
+    const integer = try vm.eval("1");
+    try std.testing.expect(!integer.isObject());
+    try std.testing.expect(!integer.isTime());
+}
+
+test "array and hash iterators walk values in order" {
+    var vm = try newVM();
+    defer vm.deinit();
+
+    const array = try vm.eval("[10, 20, 30]");
+    var array_iter = array.arrayIterator();
+    var array_sum: i64 = 0;
+    while (try array_iter.next()) |value| array_sum += try value.asInt();
+    try std.testing.expectEqual(@as(i64, 60), array_sum);
+
+    const hash = try vm.eval("{a: 1, b: 2, c: 3}");
+    try std.testing.expectEqual(@as(i64, 3), try hash.hashLen());
+    const keys = try hash.hashKeys();
+    try std.testing.expectEqual(@as(i64, 3), try keys.arrayLen());
+
+    var hash_iter = try hash.hashIterator();
+    var hash_sum: i64 = 0;
+    var key_count: usize = 0;
+    while (try hash_iter.next()) |entry| {
+        try std.testing.expect(entry.key.isSymbol());
+        hash_sum += try entry.value.asInt();
+        key_count += 1;
+    }
+    try std.testing.expectEqual(@as(usize, 3), key_count);
+    try std.testing.expectEqual(@as(i64, 6), hash_sum);
+
+    var int_iter = (try vm.eval("1")).arrayIterator();
+    try std.testing.expectError(error.InvalidType, int_iter.next());
+}
+
+test "RootedValue survives GC and arena scopes restore" {
+    var vm = try newVM();
+    defer vm.deinit();
+
+    const rooted = vm.root(try zruby.Value.fromString(&vm, "rooted"));
+    _ = try vm.eval("GC.start");
+    const text = try rooted.get().toString(allocator);
+    defer allocator.free(text);
+    try std.testing.expectEqualStrings("rooted", text);
+
+    var scope = vm.arenaScope();
+    _ = try zruby.Value.fromString(&vm, "temporary");
+    scope.deinit();
+
+    _ = try vm.eval("GC.start");
+    const root_text = try rooted.get().toString(allocator);
+    defer allocator.free(root_text);
+    try std.testing.expectEqualStrings("rooted", root_text);
+}

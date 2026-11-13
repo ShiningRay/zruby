@@ -181,3 +181,45 @@ test "calling a method that requires a block without one is an error" {
     try std.testing.expectEqualStrings("LocalJumpError", vm.lastErrorClass().?);
     try std.testing.expect(std.mem.indexOf(u8, vm.lastError().?, "yield") != null);
 }
+
+test "lastException keeps the Ruby exception object alive" {
+    var vm = try newVM();
+    defer vm.deinit();
+
+    try std.testing.expectError(error.RubyException, vm.eval("raise ArgumentError, \"kept\""));
+    const exception = vm.lastException() orelse return error.TestUnexpectedResult;
+    try std.testing.expect(exception.isException());
+    const inspected = try exception.inspect();
+    defer allocator.free(inspected);
+    try std.testing.expect(std.mem.indexOf(u8, inspected, "ArgumentError") != null);
+    try std.testing.expect(std.mem.indexOf(u8, inspected, "kept") != null);
+
+    try std.testing.expectEqual(@as(i64, 1), try (try vm.eval("1")).asInt());
+    try std.testing.expect(vm.lastException() == null);
+}
+
+test "lastBacktrace returns a bounded backtrace for runtime errors" {
+    var vm = try newVM();
+    defer vm.deinit();
+
+    _ = try vm.eval(
+        \\def zruby_trace_target
+        \\  raise "trace me"
+        \\end
+    );
+    try std.testing.expectError(error.RubyException, vm.eval("zruby_trace_target"));
+    const backtrace = try vm.lastBacktrace(allocator) orelse return error.TestUnexpectedResult;
+    defer allocator.free(backtrace);
+    try std.testing.expect(backtrace.len > 0);
+    try std.testing.expect(backtrace.len <= 4096);
+    try std.testing.expect(std.mem.indexOf(u8, backtrace, "zruby_trace_target") != null);
+}
+
+test "syntax errors have no exception object" {
+    var vm = try newVM();
+    defer vm.deinit();
+
+    try std.testing.expectError(error.RubyException, vm.eval("def broken("));
+    try std.testing.expect(vm.lastException() == null);
+    try std.testing.expect((try vm.lastBacktrace(allocator)) == null);
+}

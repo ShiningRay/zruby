@@ -117,6 +117,16 @@ mrb_value zruby_cptr_value(mrb_state *mrb, void *p) {
   return mrb_cptr_value(mrb, p);
 }
 void *zruby_cptr(mrb_value v) { return mrb_cptr(v); }
+bool zruby_range_p(mrb_value v) { return mrb_range_p(v); }
+bool zruby_proc_p(mrb_value v) { return mrb_proc_p(v); }
+bool zruby_object_p(mrb_value v) { return mrb_type(v) == MRB_TT_OBJECT; }
+mrb_value zruby_proc_value(struct RProc *proc) {
+  return mrb_obj_value(proc);
+}
+void zruby_proc_set_env_mid(struct RProc *proc, mrb_sym mid) {
+  struct REnv *env = MRB_PROC_ENV(proc);
+  if (env) env->mid = mid;
+}
 
 mrb_int zruby_get_args_array(mrb_state *mrb, const mrb_value **argv) {
   mrb_value *values = NULL;

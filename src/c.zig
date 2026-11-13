@@ -79,10 +79,24 @@ pub extern fn mrb_funcall_argv(
     argc: mrb_int,
     argv: [*c]const mrb_value,
 ) mrb_value;
+pub extern fn mrb_yield_argv(
+    mrb: *mrb_state,
+    block: mrb_value,
+    argc: mrb_int,
+    argv: [*c]const mrb_value,
+) mrb_value;
 pub extern fn mrb_inspect(mrb: *mrb_state, obj: mrb_value) mrb_value;
 pub extern fn mrb_str_new(mrb: *mrb_state, p: [*c]const u8, len: usize) mrb_value;
 pub extern fn mrb_obj_classname(mrb: *mrb_state, obj: mrb_value) [*c]const u8;
 pub extern fn mrb_gc_protect(mrb: *mrb_state, obj: mrb_value) void;
+pub extern fn mrb_range_new(
+    mrb: *mrb_state,
+    start: mrb_value,
+    end: mrb_value,
+    exclude_end: mrb_bool,
+) mrb_value;
+pub extern fn mrb_hash_keys(mrb: *mrb_state, hash: mrb_value) mrb_value;
+pub extern fn mrb_hash_size(mrb: *mrb_state, hash: mrb_value) mrb_int;
 
 // C functions with an environment, used by the high-level callback API.
 pub extern fn mrb_proc_new_cfunc_with_env(
@@ -170,6 +184,11 @@ pub extern fn zruby_parser_error_column(parser: *const mrb_parser_state, index: 
 // High-level callback helpers implemented in shim.c.
 pub extern fn zruby_cptr_value(mrb: *mrb_state, p: ?*anyopaque) mrb_value;
 pub extern fn zruby_cptr(value: mrb_value) ?*anyopaque;
+pub extern fn zruby_range_p(value: mrb_value) bool;
+pub extern fn zruby_proc_p(value: mrb_value) bool;
+pub extern fn zruby_object_p(value: mrb_value) bool;
+pub extern fn zruby_proc_value(proc: *RProc) mrb_value;
+pub extern fn zruby_proc_set_env_mid(proc: *RProc, mid: mrb_sym) void;
 pub extern fn zruby_get_args_array(
     mrb: *mrb_state,
     argv: *[*c]const mrb_value,

@@ -6,7 +6,10 @@
   `defineClassMethodCallback` with `fn (*VM, []const Value) Error!Value`.
 - Automatic argument/return marshalling, Zig error to Ruby exception mapping,
   callback registry cleanup on VM deinit, and >16 argument support.
-- Test suite: 80 tests (75 Zig + 5 Ruby integration suites).
+- Range construction, callback-backed Procs, Time/object reflection, array and
+  hash iterators, RootedValue/arenaScope, lastException and bounded backtraces.
+- Default `(eval)` filename so compiled code carries debug info for backtraces.
+- Test suite: 89 tests (84 Zig + 5 Ruby integration suites).
 
 ## 0.1.0 (2026-11-13)
 

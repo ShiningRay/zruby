@@ -102,8 +102,10 @@ mruby 的 GC 根集合包含 VM 栈和 GC arena。`zruby` 的规则：
 
 - `eval` 返回的 `Value` 在返回前调用 `mrb_gc_protect`，因此跨调用有效。
 - `call` 的接收者与参数在调用前 protect；返回值同样 protect。
-- `Value.fromString` / `fromInt` / `fromFloat` / `fromSymbol` 返回 `Error!Value`，内部走保护帧；构造出的值只在当前 arena 中有效，长期保存需调用 `VM.protect`。
+- `Value.fromString` / `fromInt` / `fromFloat` / `fromSymbol` / `fromRange` 返回 `Error!Value`，内部走保护帧；构造出的值只在当前 arena 中有效，长期保存需调用 `VM.protect` 或 `VM.root`。
 - `VM.arenaSave()` / `arenaRestore()` 暴露给高级用户，用于在批量创建临时对象后回收 arena 槽位。
+- `VM.arenaScope()` 返回显式 scope，`deinit` 时恢复 arena；`VM.root(value)` 返回 `RootedValue`，用于跨 GC 保持值。
+- `Value.fromCallback` 把高层 Zig 回调包装成 Ruby Proc，并用 `mrb_yield_argv` 处理 Zig 侧调用（mruby 的 `Proc#call` 是 VM tail call，直接经 `mrb_funcall_argv` 调用会丢返回值）。
 - `fromString` 使用 `mrb_str_new`，支持含 NUL 的字节串；`toString` 按 `RSTRING_PTR` + `RSTRING_LEN` 精确拷贝，不经过 C 字符串截断。
 
 不做自动引用计数：mruby 本身用 tracing GC，引入第二套所有权会制造悬挂引用。代价是用户必须理解 arena/protect；这一点在 README 中明确写出。
@@ -113,12 +115,13 @@ mruby 的 GC 根集合包含 VM 栈和 GC arena。`zruby` 的规则：
 Zig 的 error union 不携带负载，所以采用：
 
 ```zig
-pub const Error = error{ OutOfMemory, VmInitFailed, RubyException, InvalidType, NullPointer };
+pub const Error = error{ OutOfMemory, VmInitFailed, RubyException, InvalidType, InvalidSource, NullPointer };
 ```
 
 - `VM.eval` / `Value.call` 返回 `Error!T`。
-- 具体 Ruby 异常消息放在 `VM.lastError()`，类名放在 `VM.lastErrorClass()`。
+- 具体 Ruby 异常消息放在 `VM.lastError()`，类名放在 `VM.lastErrorClass()`；异常对象通过 `VM.lastException()` 暴露，`VM.lastBacktrace()` 返回最多 4096 字节的 backtrace。
 - 每次新的 eval/call 会清空上一次错误；错误消息由 VM 的 allocator 复制，生命周期到下一次操作或 `deinit`。
+- `eval` 缺省使用 `(eval)` 文件名，以便 codegen 生成 debug_info，backtrace 才能包含位置。
 
 异常路径：
 
@@ -129,7 +132,7 @@ pub const Error = error{ OutOfMemory, VmInitFailed, RubyException, InvalidType, 
 5. `Value.from*` 与 `defineModule`/`defineClass`/`defineMethod` 等分配型操作也走保护帧；`captureException` 的 `mrb_inspect` 同样受保护。
 5. 捕获异常时调用 `mrb_inspect` 获取可读文本，再清理 `exc`。
 
-不在 Zig 回调里让 panic 穿过 C 边界。回调需要报错时应使用 mruby 的 `mrb_raise` / `mrb_exc_raise`；当前 v0.1 的示例只覆盖成功路径，异常回调是下一阶段任务。
+不在 Zig 回调里让 panic 穿过 C 边界。底层回调需要报错时使用 mruby 的 `mrb_raise` / `mrb_exc_raise`；高层 `CallbackFn` 返回 Zig error 时，由 `callbackTrampoline` 转成 Ruby 异常。异常回调已有测试覆盖。
 
 ### 5.5 方法注册
 
@@ -178,9 +181,14 @@ pub const VM = struct {
     pub fn evalWithOptions(self: *VM, source: []const u8, options: EvalOptions) Error!Value;
     pub fn lastError(self: *const VM) ?[]const u8;
     pub fn lastErrorClass(self: *const VM) ?[]const u8;
+    pub fn lastException(self: *VM) ?Value;
+    pub fn lastBacktrace(self: *VM, allocator: std.mem.Allocator) Error!?[]u8;
     pub fn arenaSave(self: *VM) ArenaMark;
     pub fn arenaRestore(self: *VM, mark: ArenaMark) void;
+    pub fn arenaScope(self: *VM) ArenaScope;
     pub fn protect(self: *VM, value: Value) void;
+    pub fn root(self: *VM, value: Value) RootedValue;
+    pub fn createCallbackProc(self: *VM, function: CallbackFn) Error!Value;
     pub fn defineModule(self: *VM, name: []const u8) Error!*c.RClass;
     pub fn defineClass(self: *VM, name: []const u8, super: ?*c.RClass) Error!*c.RClass;
     pub fn defineModuleFunction(...) Error!void;
@@ -192,11 +200,13 @@ pub const VM = struct {
 };
 
 pub const Value = struct {
-    pub fn fromInt/fromFloat/fromString/fromSymbol(...) Error!Value;
+    pub fn fromInt/fromFloat/fromString/fromSymbol/fromRange/fromCallback(...) Error!Value;
     pub fn call(self: Value, method: []const u8, args: []const Value) Error!Value;
-    pub fn get/set/hashGet/hashSet/arrayLen(...) Error!...
-    pub fn asInt/asFloat/toString/inspect(...) Error!...
-    pub fn isNil/isTrue/isFalse/isInteger/isFloat/isString/isArray/isHash/isSymbol/isException/truthy(...) bool;
+    pub fn callProc(self: Value, args: []const Value) Error!Value;
+    pub fn get/set/hashGet/hashSet/hashKeys/hashLen/arrayLen(...) Error!...
+    pub fn arrayIterator/hashIterator(...) ...;
+    pub fn asInt/asFloat/toString/inspect/className(...) Error!...;
+    pub fn isNil/isTrue/isFalse/isInteger/isFloat/isString/isArray/isHash/isSymbol/isRange/isProc/isTime/isObject/isException/truthy(...) bool;
 };
 ```
 
@@ -214,8 +224,8 @@ pub const Value = struct {
 
 已落地：
 
-- 80 个测试（含 5 个 Ruby 集成套件）覆盖 ABI、VM 生命周期、求值/诊断、值语义、回调、GC/arena、多线程 VM、类/模块定义、数组/哈希、NUL/UTF-8、跨 VM 拒绝等边界。测试矩阵见 [测试策略](testing.md)。
-- `zig build test` 通过 80/80；`zig build test -Doptimize=ReleaseSafe` 同样通过。
+- 89 个测试（含 5 个 Ruby 集成套件）覆盖 ABI、VM 生命周期、求值/诊断、值语义、回调、GC/arena、多线程 VM、类/模块定义、数组/哈希、NUL/UTF-8、跨 VM 拒绝等边界。测试矩阵见 [测试策略](testing.md)。
+- `zig build test` 通过 89/89；`zig build test -Doptimize=ReleaseSafe` 同样通过。
 - `zig build run` 端到端运行 `examples/hello.rb`，验证 `Zig.square(7)` 与 Ruby 方法调用。
 
 后续补充：

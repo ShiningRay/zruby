@@ -100,6 +100,28 @@ try vm.defineModuleCallback(zig_module, "add", &add, zruby.args.req(2));
 
 实例方法与类方法分别用 `defineMethodCallback` / `defineClassMethodCallback`。回调返回 Zig error 时会转成 Ruby 异常：`InvalidType` → `TypeError`，`InvalidSource`/`NullPointer` → `ArgumentError`，其余（含 `RubyException`）→ `RuntimeError`/对应类；`RubyException` 的消息取自 `lastError()`。回调注册项在 VM 生命周期内有效，VM 关闭时统一释放。
 
+## 值类型、迭代与诊断
+
+```zig
+const range = try zruby.Value.fromRange(&vm, try zruby.Value.fromInt(&vm, 1), try zruby.Value.fromInt(&vm, 5), false);
+const proc = try zruby.Value.fromCallback(&vm, &add);
+
+var iter = try hash.hashIterator();
+while (try iter.next()) |entry| {
+    _ = entry.key;
+    _ = entry.value;
+}
+
+const exception = vm.lastException(); // ?Value
+const backtrace = try vm.lastBacktrace(allocator); // ?[]u8，最多 4096 字节
+```
+
+- `isRange` / `isProc` / `isTime` / `isObject` / `className` 提供类型反射。
+- `arrayIterator`、`hashIterator`、`hashKeys`、`hashLen` 覆盖常见容器遍历。
+- `Value.call` 对 Proc 的 `call`/`[]` 走 `mrb_yield_argv`，避免 mruby tail call 在 C 侧丢失返回值；也可以直接调用 `Value.callProc`。
+- `VM.root(value)` 返回 `RootedValue`；`VM.arenaScope()` 返回显式 arena scope，`deinit` 时恢复。
+- `eval` 缺省使用 `(eval)` 文件名，让 codegen 生成 debug info，`lastBacktrace` 才能给出位置。
+
 ## 错误处理
 
 ```zig
@@ -130,16 +152,18 @@ const value = vm.eval("raise ArgumentError, \"boom\"") catch |err| {
 | `VM.init(allocator)` | 打开 mruby VM |
 | `VM.eval(source)` | 执行 Ruby 源码 |
 | `VM.evalWithOptions(source, .{ .filename = "x.rb" })` | 带文件名执行，便于错误定位 |
-| `Value.call(name, args)` | 调用 Ruby 方法 |
-| `Value.asInt` / `asFloat` / `toString` | 取值，字符串会拷贝到 Zig allocator |
-| `Value.fromInt` / `fromFloat` / `fromString` / `fromSymbol` | 构造 Ruby 值，返回 `Error!Value` |
-| `Value.get` / `set` / `hashGet` / `hashSet` | 数组、哈希读写 |
+| `Value.call(name, args)` | 调用 Ruby 方法；Proc 的 `call`/`[]` 自动走 yield 路径 |
+| `Value.callProc(args)` | 直接调用 Proc |
+| `Value.asInt` / `asFloat` / `toString` / `className` | 取值，字符串会拷贝到 Zig allocator |
+| `Value.fromInt` / `fromFloat` / `fromString` / `fromSymbol` / `fromRange` / `fromCallback` | 构造 Ruby 值，返回 `Error!Value` |
+| `Value.get` / `set` / `hashGet` / `hashSet` / `hashKeys` / `hashLen` | 数组、哈希读写 |
+| `Value.arrayIterator` / `hashIterator` | 容器遍历 |
 | `Value.inspect` | 调用 Ruby `inspect` 并拷贝结果 |
 | `VM.defineModule` / `defineClass` | 创建 Ruby 模块/类 |
 | `VM.defineModuleFunction` / `defineMethod` / `defineClassMethod` | 注册底层 C ABI Zig 回调 |
 | `VM.defineModuleCallback` / `defineMethodCallback` / `defineClassMethodCallback` | 注册高层 Zig 回调，自动转换参数与返回值 |
-| `VM.lastError` / `lastErrorClass` | 最近一次 Ruby 异常 |
-| `VM.arenaSave` / `arenaRestore` / `protect` | 手动管理 GC 根 |
+| `VM.lastError` / `lastErrorClass` / `lastException` / `lastBacktrace` | 最近一次 Ruby 异常、异常对象与有界 backtrace |
+| `VM.arenaSave` / `arenaRestore` / `arenaScope` / `protect` / `root` | 手动管理 GC 根与 arena scope |
 
 ## 限制与安全边界
 

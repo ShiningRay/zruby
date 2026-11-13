@@ -53,8 +53,8 @@
 
 5. **示例与测试**
    - `examples/embed.zig` + `examples/hello.rb`。
-   - `tests/` 按 values/lifecycle/errors/callbacks/ruby_suites 拆分，共 80 个测试（含 5 个 Ruby 套件）。
-   - `zig build test` = 80/80；`zig build test -Doptimize=ReleaseSafe` 同样通过；`zig build run` 输出符合预期。
+   - `tests/` 按 values/lifecycle/errors/callbacks/ruby_suites 拆分，共 89 个测试（含 5 个 Ruby 套件）。
+   - `zig build test` = 89/89；`zig build test -Doptimize=ReleaseSafe` 同样通过；`zig build run` 输出符合预期。
 
 6. **仓库工程化**
    - `build.zig` 静态库/示例/测试三个产物。
@@ -107,13 +107,13 @@ zig build
 
 验收：回调抛错时 Ruby 侧收到异常，Zig 侧不 panic、不泄漏。已由 `tests/callbacks.zig` 覆盖，含 arity、类型错误、Ruby 异常、跨 VM 返回值与 VM 复用。
 
-### 6.2 值类型覆盖与生命周期
+### 6.2 值类型覆盖与生命周期（已完成）
 
-- Symbol、Range、Proc、Time、自定义对象；
-- 数组/哈希迭代器；
-- 显式 `RootedValue` / `arenaScope`，在 debug 下检查跨 scope/跨 VM 使用；
-- 结构化错误详情与有界 backtrace；
-- `mrb_value` 直接 API 与反射。
+- [x] Symbol、Range、Proc、Time、自定义对象（`fromRange`、`fromCallback`、`isTime`、`isObject`、`className`）；
+- [x] 数组/哈希迭代器（`arrayIterator` / `hashIterator` / `hashKeys` / `hashLen`）；
+- [x] 显式 `RootedValue` / `arenaScope`；`RootedValue` 校验 VM，`ArenaScope` 校验 active 状态；
+- [x] 结构化错误详情与有界 backtrace（`lastException` / `lastBacktrace`，上限 4096 字节）；
+- [x] `mrb_value` 直接 API 与反射（公开 `Value.raw` / `VM.raw`，`className` 与类型谓词；跨 scope 自动失效检查暂未实现，依赖 arena 语义）。
 
 ### 6.3 字节码
 
