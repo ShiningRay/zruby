@@ -4,7 +4,8 @@
 MRuby::Build.new do |conf|
   conf.toolchain
   conf.gembox 'default'
-  conf.gems.delete_if do |gem|
+  # MRuby::Gem::List has no delete API; prune the internal array directly.
+  conf.gems.instance_variable_get(:@ary).reject! do |gem|
     gem.name.to_s.start_with?('mruby-bin-') && gem.name != 'mruby-bin-mrbc'
   end
 end
