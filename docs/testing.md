@@ -1,6 +1,6 @@
 # 测试策略与覆盖
 
-当前 `tests/all.zig` 是测试根，按主题拆成多个文件；每个测试使用独立 VM 和 `std.testing.allocator`，错误消息、字符串拷贝与 VM 资源泄漏由测试分配器兜底。共 **75 个测试声明：70 个 Zig 测试 + 5 个 Ruby 集成套件**。
+当前 `tests/all.zig` 是测试根，按主题拆成多个文件；每个测试使用独立 VM 和 `std.testing.allocator`，错误消息、字符串拷贝与 VM 资源泄漏由测试分配器兜底。共 **80 个测试声明：75 个 Zig 测试 + 5 个 Ruby 集成套件**。
 
 ## 1. 测试分层
 
@@ -51,6 +51,7 @@
 - 返回值：整数、浮点、布尔、字符串、nil、对象、self。
 - 错误 arity/type 变成 `RubyException`；回调错误后 VM 仍可继续使用。
 - 方法与模块函数重定义；通过 `Value.call` 直接调用模块/类/实例方法。
+- 高层回调 API：模块函数/实例方法/类方法自动参数与返回值；超过 16 个参数走堆路径；Zig error → Ruby 异常（`InvalidType`/`RubyException` 类映射）；跨 VM 返回值拒绝；回调失败后 VM 可继续使用。
 
 ### GC 与 arena
 
@@ -95,7 +96,7 @@ zig build test
 zig build run
 ```
 
-当前结果：**75/75** 通过（Debug 与 ReleaseSafe）；干净目录同步后同样通过。
+当前结果：**80/80** 通过（Debug 与 ReleaseSafe）；干净目录同步后同样通过。
 
 ## 6. 尚未覆盖
 

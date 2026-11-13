@@ -27,8 +27,8 @@
 | M0 调研 | 已完成 | 版本/API/构建结论 | Zig 0.16.0 与 mruby 4.0.0 本机验证 |
 | M1 核心绑定 | 已完成 | `src/c.zig`、`src/shim.c`、`src/zruby.zig` | `zig build test` 通过 |
 | M2 可用性 | 已完成 | 示例、README、构建脚本、CI | `zig build run` 输出正确 |
-| M3 发布准备 | 待办 | 版本号、变更日志、Git tag、远程仓库 | 干净 clone 后按 README 可复现 |
-| M4 扩展 | 待办 | 高层回调、更多类型、字节码 | 新增测试与文档 |
+| M3 发布准备 | 已完成 | 版本号、变更日志、Git tag、远程仓库 | 干净 clone 后按 README 可复现 |
+| M4 扩展 | 进行中 | 高层回调、更多类型、字节码 | 新增测试与文档 |
 
 ## 4. 已完成的实施步骤
 
@@ -53,8 +53,8 @@
 
 5. **示例与测试**
    - `examples/embed.zig` + `examples/hello.rb`。
-   - `tests/` 按 values/lifecycle/errors/callbacks/ruby_suites 拆分，共 75 个测试（含 5 个 Ruby 套件）。
-   - `zig build test` = 75/75；`zig build test -Doptimize=ReleaseSafe` 同样通过；`zig build run` 输出符合预期。
+   - `tests/` 按 values/lifecycle/errors/callbacks/ruby_suites 拆分，共 80 个测试（含 5 个 Ruby 套件）。
+   - `zig build test` = 80/80；`zig build test -Doptimize=ReleaseSafe` 同样通过；`zig build run` 输出符合预期。
 
 6. **仓库工程化**
    - `build.zig` 静态库/示例/测试三个产物。
@@ -94,18 +94,18 @@ zig build
 
 ## 6. 下一阶段（M4）
 
-### 6.1 高层回调 API
+### 6.1 高层回调 API（已完成）
 
 目标：用户写普通 Zig 函数，不必手写 `mrb_get_args`。
 
 任务：
 
-- 支持 `fn(*VM, []const Value) Error!Value` 的自适应包装；
-- 参数/返回值自动转换；
-- 异常安全：Zig error -> Ruby 异常；
-- 回调注册表与生命周期管理。
+- [x] 支持 `fn(*VM, []const Value) Error!Value` 的自适应包装；
+- [x] 参数/返回值自动转换（含超过 16 个参数的堆路径）；
+- [x] 异常安全：Zig error -> Ruby 异常；`RubyException` 保留常见异常类；
+- [x] 回调注册表与生命周期管理（注册项随 VM 释放）。
 
-验收：回调抛错时 Ruby 侧收到异常，Zig 侧不 panic、不泄漏。
+验收：回调抛错时 Ruby 侧收到异常，Zig 侧不 panic、不泄漏。已由 `tests/callbacks.zig` 覆盖，含 arity、类型错误、Ruby 异常、跨 VM 返回值与 VM 复用。
 
 ### 6.2 值类型覆盖与生命周期
 

@@ -322,3 +322,136 @@ test "redefining a module function replaces the implementation" {
     try vm.defineModuleFunction(module, "noArgs", &zigNoArgs, zruby.args.none());
     try std.testing.expectEqual(@as(i64, 42), try (try vm.eval("ZigTest.noArgs")).asInt());
 }
+
+fn autoAdd(vm: *zruby.VM, values: []const zruby.Value) zruby.Error!zruby.Value {
+    if (values.len != 2) return error.InvalidSource;
+    return zruby.Value.fromInt(vm, try values[0].asInt() + try values[1].asInt());
+}
+
+fn autoSum(vm: *zruby.VM, values: []const zruby.Value) zruby.Error!zruby.Value {
+    var total: i64 = 0;
+    for (values) |value| total += try value.asInt();
+    return zruby.Value.fromInt(vm, total);
+}
+
+fn autoEcho(vm: *zruby.VM, values: []const zruby.Value) zruby.Error!zruby.Value {
+    _ = vm;
+    if (values.len != 1) return error.InvalidSource;
+    return values[0];
+}
+
+fn autoVersion(vm: *zruby.VM, values: []const zruby.Value) zruby.Error!zruby.Value {
+    if (values.len != 0) return error.InvalidSource;
+    return zruby.Value.fromString(vm, "auto");
+}
+
+fn autoInvalidType(vm: *zruby.VM, values: []const zruby.Value) zruby.Error!zruby.Value {
+    _ = vm;
+    _ = values;
+    return error.InvalidType;
+}
+
+fn autoRaiseRuby(vm: *zruby.VM, values: []const zruby.Value) zruby.Error!zruby.Value {
+    _ = values;
+    _ = vm.eval("raise ArgumentError, \"raised from Zig callback\"") catch {};
+    return error.RubyException;
+}
+
+var foreign_vm: ?*zruby.VM = null;
+
+fn autoForeignValue(vm: *zruby.VM, values: []const zruby.Value) zruby.Error!zruby.Value {
+    _ = vm;
+    _ = values;
+    const other = foreign_vm orelse return error.InvalidType;
+    return zruby.Value.fromInt(other, 1);
+}
+
+fn registerCallbacks(vm: *zruby.VM) !void {
+    const module = try vm.defineModule("ZigAuto");
+    try vm.defineModuleCallback(module, "add", &autoAdd, zruby.args.req(2));
+    try vm.defineModuleCallback(module, "sum", &autoSum, zruby.args.rest());
+    try vm.defineModuleCallback(module, "echo", &autoEcho, zruby.args.req(1));
+    try vm.defineModuleCallback(module, "version", &autoVersion, zruby.args.none());
+    try vm.defineModuleCallback(module, "invalidType", &autoInvalidType, zruby.args.none());
+    try vm.defineModuleCallback(module, "raiseRuby", &autoRaiseRuby, zruby.args.none());
+    try vm.defineModuleCallback(module, "foreignValue", &autoForeignValue, zruby.args.none());
+
+    const class = try vm.defineClass("ZigAutoObject", vm.objectClass());
+    try vm.defineMethodCallback(class, "add", &autoAdd, zruby.args.req(2));
+    try vm.defineClassMethodCallback(class, "version", &autoVersion, zruby.args.none());
+}
+
+test "high-level module callbacks receive arguments and return values" {
+    var vm = try newVM();
+    defer vm.deinit();
+    try registerCallbacks(&vm);
+
+    try std.testing.expectEqual(@as(i64, 42), try (try vm.eval("ZigAuto.add(20, 22)")).asInt());
+    try std.testing.expectEqual(@as(i64, 10), try (try vm.eval("ZigAuto.sum(1, 2, 3, 4)")).asInt());
+
+    const echoed = try vm.eval("ZigAuto.echo(\"hello\")");
+    const text = try echoed.toString(allocator);
+    defer allocator.free(text);
+    try std.testing.expectEqualStrings("hello", text);
+
+    const version = try vm.eval("ZigAuto.version");
+    const version_text = try version.toString(allocator);
+    defer allocator.free(version_text);
+    try std.testing.expectEqualStrings("auto", version_text);
+}
+
+test "high-level instance and class method callbacks dispatch correctly" {
+    var vm = try newVM();
+    defer vm.deinit();
+    try registerCallbacks(&vm);
+
+    try std.testing.expectEqual(@as(i64, 9), try (try vm.eval("ZigAutoObject.new.add(4, 5)")).asInt());
+    const version = try vm.eval("ZigAutoObject.version");
+    const text = try version.toString(allocator);
+    defer allocator.free(text);
+    try std.testing.expectEqualStrings("auto", text);
+}
+
+test "high-level callbacks marshal more than sixteen arguments" {
+    var vm = try newVM();
+    defer vm.deinit();
+    try registerCallbacks(&vm);
+
+    const result = try vm.eval("ZigAuto.sum(*(1..20).to_a)");
+    try std.testing.expectEqual(@as(i64, 210), try result.asInt());
+}
+
+test "high-level callback errors become Ruby exceptions and VM stays usable" {
+    var vm = try newVM();
+    defer vm.deinit();
+    try registerCallbacks(&vm);
+
+    try std.testing.expectError(error.RubyException, vm.eval("ZigAuto.add(1)"));
+    const arity_message = vm.lastError() orelse return error.TestUnexpectedResult;
+    try std.testing.expect(arity_message.len > 0);
+
+    try std.testing.expectError(error.RubyException, vm.eval("ZigAuto.invalidType"));
+    try std.testing.expectEqualStrings("TypeError", vm.lastErrorClass() orelse "");
+
+    try std.testing.expectError(error.RubyException, vm.eval("ZigAuto.raiseRuby"));
+    try std.testing.expectEqualStrings("ArgumentError", vm.lastErrorClass() orelse "");
+    const message = vm.lastError() orelse return error.TestUnexpectedResult;
+    try std.testing.expect(std.mem.indexOf(u8, message, "raised from Zig callback") != null);
+
+    try std.testing.expectEqual(@as(i64, 42), try (try vm.eval("ZigAuto.add(20, 22)")).asInt());
+    try std.testing.expect(vm.lastError() == null);
+}
+
+test "high-level callback rejects a value from another VM" {
+    var first = try newVM();
+    defer first.deinit();
+    var second = try newVM();
+    defer second.deinit();
+    try registerCallbacks(&first);
+
+    foreign_vm = &second;
+    defer foreign_vm = null;
+
+    try std.testing.expectError(error.RubyException, first.eval("ZigAuto.foreignValue"));
+    try std.testing.expectEqualStrings("TypeError", first.lastErrorClass() orelse "");
+}

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- High-level callback API: `defineModuleCallback` / `defineMethodCallback` /
+  `defineClassMethodCallback` with `fn (*VM, []const Value) Error!Value`.
+- Automatic argument/return marshalling, Zig error to Ruby exception mapping,
+  callback registry cleanup on VM deinit, and >16 argument support.
+- Test suite: 80 tests (75 Zig + 5 Ruby integration suites).
+
 ## 0.1.0 (2026-11-13)
 
 - Zig 0.16.0 + mruby 4.0.0 release baseline.

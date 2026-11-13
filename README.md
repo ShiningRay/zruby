@@ -85,6 +85,21 @@ const result = try vm.eval("Zig.square(9)"); // 81
 
 回调必须是 `callconv(.c)`，第一个参数是 `?*zruby.c.mrb_state`，第二个是 `zruby.c.mrb_value`。不要在回调里让 Zig panic 越过 C 边界；需要报错时用 mruby 的异常 API。
 
+### 高层回调 API
+
+普通 Zig 函数可以免写 `mrb_get_args`，参数与返回值自动转换成 `Value`：
+
+```zig
+fn add(vm: *zruby.VM, values: []const zruby.Value) zruby.Error!zruby.Value {
+    return zruby.Value.fromInt(vm, try values[0].asInt() + try values[1].asInt());
+}
+
+const zig_module = try vm.defineModule("Zig");
+try vm.defineModuleCallback(zig_module, "add", &add, zruby.args.req(2));
+```
+
+实例方法与类方法分别用 `defineMethodCallback` / `defineClassMethodCallback`。回调返回 Zig error 时会转成 Ruby 异常：`InvalidType` → `TypeError`，`InvalidSource`/`NullPointer` → `ArgumentError`，其余（含 `RubyException`）→ `RuntimeError`/对应类；`RubyException` 的消息取自 `lastError()`。回调注册项在 VM 生命周期内有效，VM 关闭时统一释放。
+
 ## 错误处理
 
 ```zig
@@ -121,7 +136,8 @@ const value = vm.eval("raise ArgumentError, \"boom\"") catch |err| {
 | `Value.get` / `set` / `hashGet` / `hashSet` | 数组、哈希读写 |
 | `Value.inspect` | 调用 Ruby `inspect` 并拷贝结果 |
 | `VM.defineModule` / `defineClass` | 创建 Ruby 模块/类 |
-| `VM.defineModuleFunction` / `defineMethod` / `defineClassMethod` | 注册 Zig 回调 |
+| `VM.defineModuleFunction` / `defineMethod` / `defineClassMethod` | 注册底层 C ABI Zig 回调 |
+| `VM.defineModuleCallback` / `defineMethodCallback` / `defineClassMethodCallback` | 注册高层 Zig 回调，自动转换参数与返回值 |
 | `VM.lastError` / `lastErrorClass` | 最近一次 Ruby 异常 |
 | `VM.arenaSave` / `arenaRestore` / `protect` | 手动管理 GC 根 |
 

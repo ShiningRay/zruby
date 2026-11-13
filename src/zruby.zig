@@ -35,6 +35,12 @@ pub const Error = error{
     NullPointer,
 };
 
+/// A high-level Zig callback. Arguments are copied into `Value` wrappers and
+/// the return value must belong to the same VM. Returning a Zig error raises
+/// a Ruby exception; `error.RubyException` reuses the message captured by the
+/// VM (class is mapped for common exception classes).
+pub const CallbackFn = *const fn (*VM, []const Value) Error!Value;
+
 /// A mark for the mruby GC arena.
 pub const ArenaMark = struct {
     index: c_int,
@@ -46,6 +52,7 @@ pub const VM = struct {
     allocator: std.mem.Allocator,
     last_error: ?[]u8 = null,
     last_error_class: ?[]u8 = null,
+    callbacks: std.ArrayListUnmanaged(*CallbackEntry) = .empty,
 
     pub fn init(allocator: std.mem.Allocator) Error!VM {
         const raw = c.mrb_open() orelse return error.OutOfMemory;
@@ -58,6 +65,8 @@ pub const VM = struct {
 
     pub fn deinit(self: *VM) void {
         self.clearLastError();
+        for (self.callbacks.items) |entry| self.allocator.destroy(entry);
+        self.callbacks.deinit(self.allocator);
         c.mrb_close(self.raw);
         self.* = undefined;
     }
@@ -291,6 +300,74 @@ pub const VM = struct {
         self.clearLastError();
         var state: c.mrb_bool = false;
         const result = c.mrb_protect_error(self.raw, &defineBody, data, &state);
+        if (state or c.zruby_has_exc(self.raw)) {
+            const exc = if (state) result else c.zruby_get_exc(self.raw);
+            self.captureException(exc);
+            c.zruby_clear_exc(self.raw);
+            return error.RubyException;
+        }
+    }
+
+    /// Define a module function backed by a high-level Zig callback.
+    /// The callback receives all Ruby arguments as `Value`s and may return
+    /// any `Value` belonging to this VM.
+    pub fn defineModuleCallback(
+        self: *VM,
+        module: *c.RClass,
+        name: []const u8,
+        function: CallbackFn,
+        aspec: c.mrb_aspec,
+    ) Error!void {
+        return self.defineCallback(module, name, function, .module_function, aspec);
+    }
+
+    /// Define an instance method backed by a high-level Zig callback.
+    pub fn defineMethodCallback(
+        self: *VM,
+        class: *c.RClass,
+        name: []const u8,
+        function: CallbackFn,
+        aspec: c.mrb_aspec,
+    ) Error!void {
+        return self.defineCallback(class, name, function, .method, aspec);
+    }
+
+    /// Define a class method backed by a high-level Zig callback.
+    pub fn defineClassMethodCallback(
+        self: *VM,
+        class: *c.RClass,
+        name: []const u8,
+        function: CallbackFn,
+        aspec: c.mrb_aspec,
+    ) Error!void {
+        return self.defineCallback(class, name, function, .class_method, aspec);
+    }
+
+    fn defineCallback(
+        self: *VM,
+        owner: *c.RClass,
+        name: []const u8,
+        function: CallbackFn,
+        kind: CallbackKind,
+        aspec: c.mrb_aspec,
+    ) Error!void {
+        self.clearLastError();
+        const entry = self.allocator.create(CallbackEntry) catch return error.OutOfMemory;
+        entry.* = .{ .vm = self, .function = function };
+        self.callbacks.append(self.allocator, entry) catch {
+            self.allocator.destroy(entry);
+            return error.OutOfMemory;
+        };
+
+        var data = CallbackDefineData{
+            .entry = entry,
+            .owner = owner,
+            .name = name,
+            .kind = kind,
+            .aspec = aspec,
+        };
+        var state: c.mrb_bool = false;
+        const result = c.mrb_protect_error(self.raw, &callbackDefineBody, &data, &state);
         if (state or c.zruby_has_exc(self.raw)) {
             const exc = if (state) result else c.zruby_get_exc(self.raw);
             self.captureException(exc);
@@ -651,6 +728,135 @@ fn defineBody(mrb: ?*c.mrb_state, userdata: ?*anyopaque) callconv(.c) c.mrb_valu
         ),
     }
     return c.zruby_nil_value();
+}
+
+const CallbackKind = enum {
+    module_function,
+    method,
+    class_method,
+};
+
+const CallbackEntry = struct {
+    vm: *VM,
+    function: CallbackFn,
+};
+
+const CallbackDefineData = struct {
+    entry: *CallbackEntry,
+    owner: *c.RClass,
+    name: []const u8,
+    kind: CallbackKind,
+    aspec: c.mrb_aspec,
+};
+
+fn callbackDefineBody(mrb: ?*c.mrb_state, userdata: ?*anyopaque) callconv(.c) c.mrb_value {
+    const data: *CallbackDefineData = @ptrCast(@alignCast(userdata orelse unreachable));
+    const state = mrb orelse unreachable;
+
+    var env = c.zruby_cptr_value(state, data.entry);
+    const proc = c.mrb_proc_new_cfunc_with_env(
+        state,
+        &callbackTrampoline,
+        1,
+        &env,
+    ) orelse return c.zruby_nil_value();
+    const mid = c.mrb_intern(state, data.name.ptr, data.name.len);
+
+    switch (data.kind) {
+        .module_function => c.zruby_define_module_function_proc(
+            state,
+            data.owner,
+            mid,
+            proc,
+            data.aspec,
+        ),
+        .method => c.zruby_define_proc_method(
+            state,
+            data.owner,
+            mid,
+            proc,
+            data.aspec,
+            0,
+        ),
+        .class_method => c.zruby_define_class_method_proc(
+            state,
+            data.owner,
+            mid,
+            proc,
+            data.aspec,
+        ),
+    }
+    return c.zruby_nil_value();
+}
+
+fn callbackTrampoline(mrb: ?*c.mrb_state, self: c.mrb_value) callconv(.c) c.mrb_value {
+    _ = self;
+    const state = mrb orelse unreachable;
+
+    const env = c.mrb_proc_cfunc_env_get(state, 0);
+    const raw_ptr = c.zruby_cptr(env);
+    if (raw_ptr == null) {
+        const message = "zruby callback environment is missing";
+        c.zruby_raise_callback_error(state, 3, message.ptr, message.len);
+        unreachable;
+    }
+    const entry: *CallbackEntry = @ptrCast(@alignCast(raw_ptr.?));
+
+    var raw_args: [*c]const c.mrb_value = null;
+    const raw_count = c.zruby_get_args_array(state, &raw_args);
+    const count: usize = if (raw_count > 0) @intCast(raw_count) else 0;
+
+    var stack_args: [16]Value = undefined;
+    var heap_args: ?[]Value = null;
+    const values: []Value = if (count <= stack_args.len)
+        stack_args[0..count]
+    else blk: {
+        heap_args = entry.vm.allocator.alloc(Value, count) catch {
+            const message = "out of memory while marshalling callback arguments";
+            c.zruby_raise_callback_error(state, 3, message.ptr, message.len);
+            unreachable;
+        };
+        break :blk heap_args.?;
+    };
+    for (0..count) |i| {
+        values[i] = .{ .vm = entry.vm, .raw = raw_args[i] };
+    }
+
+    const result = entry.function(entry.vm, values) catch |err| {
+        if (heap_args) |buffer| entry.vm.allocator.free(buffer);
+        const message = entry.vm.lastError() orelse @errorName(err);
+        c.zruby_raise_callback_error(
+            state,
+            classifyCallbackError(entry.vm, err),
+            message.ptr,
+            message.len,
+        );
+        unreachable;
+    };
+    if (heap_args) |buffer| entry.vm.allocator.free(buffer);
+
+    if (result.vm != entry.vm) {
+        const message = "zruby callback returned a value from another VM";
+        c.zruby_raise_callback_error(state, 1, message.ptr, message.len);
+        unreachable;
+    }
+    return result.raw;
+}
+
+fn classifyCallbackError(vm: *VM, err: Error) c_int {
+    if (err == error.RubyException) {
+        const class_name = vm.lastErrorClass() orelse return 0;
+        if (std.mem.eql(u8, class_name, "TypeError")) return 1;
+        if (std.mem.eql(u8, class_name, "ArgumentError")) return 2;
+        if (std.mem.eql(u8, class_name, "NoMemoryError")) return 3;
+        return 0;
+    }
+    return switch (err) {
+        error.InvalidType => 1,
+        error.InvalidSource, error.NullPointer => 2,
+        error.OutOfMemory => 3,
+        else => 0,
+    };
 }
 
 const ValueData = union(enum) {

@@ -24,6 +24,7 @@ pub const mrb_aspec = u32;
 pub const mrb_bool = bool;
 
 pub const mrb_func_t = ?*const fn (mrb: ?*mrb_state, self: mrb_value) callconv(.c) mrb_value;
+pub const RProc = opaque {};
 
 pub const mrb_protect_error_func = fn (
     mrb: ?*mrb_state,
@@ -82,6 +83,15 @@ pub extern fn mrb_inspect(mrb: *mrb_state, obj: mrb_value) mrb_value;
 pub extern fn mrb_str_new(mrb: *mrb_state, p: [*c]const u8, len: usize) mrb_value;
 pub extern fn mrb_obj_classname(mrb: *mrb_state, obj: mrb_value) [*c]const u8;
 pub extern fn mrb_gc_protect(mrb: *mrb_state, obj: mrb_value) void;
+
+// C functions with an environment, used by the high-level callback API.
+pub extern fn mrb_proc_new_cfunc_with_env(
+    mrb: *mrb_state,
+    func: mrb_func_t,
+    argc: mrb_int,
+    argv: [*c]const mrb_value,
+) ?*RProc;
+pub extern fn mrb_proc_cfunc_env_get(mrb: *mrb_state, idx: mrb_int) mrb_value;
 
 // Class/module definition for Zig-implemented methods.
 pub extern fn mrb_define_module(mrb: *mrb_state, name: [*c]const u8) ?*RClass;
@@ -156,3 +166,39 @@ pub extern fn zruby_parser_error_message(
 ) [*c]const u8;
 pub extern fn zruby_parser_error_lineno(parser: *const mrb_parser_state, index: usize) c_int;
 pub extern fn zruby_parser_error_column(parser: *const mrb_parser_state, index: usize) c_int;
+
+// High-level callback helpers implemented in shim.c.
+pub extern fn zruby_cptr_value(mrb: *mrb_state, p: ?*anyopaque) mrb_value;
+pub extern fn zruby_cptr(value: mrb_value) ?*anyopaque;
+pub extern fn zruby_get_args_array(
+    mrb: *mrb_state,
+    argv: *[*c]const mrb_value,
+) mrb_int;
+pub extern fn zruby_define_proc_method(
+    mrb: *mrb_state,
+    class: *RClass,
+    mid: mrb_sym,
+    proc: *RProc,
+    aspec: mrb_aspec,
+    visibility: c_int,
+) void;
+pub extern fn zruby_define_module_function_proc(
+    mrb: *mrb_state,
+    module: *RClass,
+    mid: mrb_sym,
+    proc: *RProc,
+    aspec: mrb_aspec,
+) void;
+pub extern fn zruby_define_class_method_proc(
+    mrb: *mrb_state,
+    class: *RClass,
+    mid: mrb_sym,
+    proc: *RProc,
+    aspec: mrb_aspec,
+) void;
+pub extern fn zruby_raise_callback_error(
+    mrb: *mrb_state,
+    kind: c_int,
+    message: [*c]const u8,
+    message_len: usize,
+) noreturn;

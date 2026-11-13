@@ -145,7 +145,9 @@ fn (mrb: ?*c.mrb_state, self: c.mrb_value) callconv(.c) c.mrb_value
 
 - 需要处理可变参数、关键字参数、块、异常；
 - 任何隐藏的分配/保护都可能破坏 GC 语义；
-- v0.1 优先把底层契约做对，高层封装留到 v0.2。
+- v0.1 优先把底层契约做对。
+
+v0.2 起在此之上增加显式的高层回调 API：`defineModuleCallback` / `defineMethodCallback` / `defineClassMethodCallback` 接受 `fn (*VM, []const Value) Error!Value`，通过 mruby 的 C 函数环境（`mrb_proc_new_cfunc_with_env`）保存注册项，自动收集全部参数并转换返回值；Zig error 在 C 边界转成 Ruby 异常，注册项随 VM 关闭统一释放。底层 `defineModuleFunction` 等接口继续保留，供需要自定义 `mrb_get_args` 或块参数的用户使用。
 
 ### 5.6 构建集成
 
@@ -184,6 +186,9 @@ pub const VM = struct {
     pub fn defineModuleFunction(...) Error!void;
     pub fn defineMethod(...) Error!void;
     pub fn defineClassMethod(...) Error!void;
+    pub fn defineModuleCallback(...) Error!void;
+    pub fn defineMethodCallback(...) Error!void;
+    pub fn defineClassMethodCallback(...) Error!void;
 };
 
 pub const Value = struct {
@@ -209,8 +214,8 @@ pub const Value = struct {
 
 已落地：
 
-- 75 个测试（含 5 个 Ruby 集成套件）覆盖 ABI、VM 生命周期、求值/诊断、值语义、回调、GC/arena、多线程 VM、类/模块定义、数组/哈希、NUL/UTF-8、跨 VM 拒绝等边界。测试矩阵见 [测试策略](testing.md)。
-- `zig build test` 通过 75/75；`zig build test -Doptimize=ReleaseSafe` 同样通过。
+- 80 个测试（含 5 个 Ruby 集成套件）覆盖 ABI、VM 生命周期、求值/诊断、值语义、回调、GC/arena、多线程 VM、类/模块定义、数组/哈希、NUL/UTF-8、跨 VM 拒绝等边界。测试矩阵见 [测试策略](testing.md)。
+- `zig build test` 通过 80/80；`zig build test -Doptimize=ReleaseSafe` 同样通过。
 - `zig build run` 端到端运行 `examples/hello.rb`，验证 `Zig.square(7)` 与 Ruby 方法调用。
 
 后续补充：

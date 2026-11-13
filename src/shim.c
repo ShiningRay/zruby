@@ -5,8 +5,10 @@
  */
 #include <stdbool.h>
 #include <mruby.h>
+#include <mruby/class.h>
 #include <mruby/compile.h>
 #include <mruby/error.h>
+#include <mruby/proc.h>
 #include <mruby/string.h>
 #include <mruby/version.h>
 
@@ -109,4 +111,67 @@ int zruby_parser_error_column(const struct mrb_parser_state *parser,
     return 0;
   }
   return parser->error_buffer[index].column;
+}
+
+mrb_value zruby_cptr_value(mrb_state *mrb, void *p) {
+  return mrb_cptr_value(mrb, p);
+}
+void *zruby_cptr(mrb_value v) { return mrb_cptr(v); }
+
+mrb_int zruby_get_args_array(mrb_state *mrb, const mrb_value **argv) {
+  mrb_value *values = NULL;
+  mrb_int count = 0;
+  mrb_get_args(mrb, "*", &values, &count);
+  *argv = values;
+  return count;
+}
+
+void zruby_define_proc_method(mrb_state *mrb, struct RClass *c, mrb_sym mid,
+                              struct RProc *proc, mrb_aspec aspec,
+                              int visibility) {
+  mrb_method_t m;
+  MRB_METHOD_FROM_PROC(m, proc);
+  m.flags |= aspec;
+  MRB_METHOD_SET_VISIBILITY(m, visibility);
+  mrb_define_method_raw(mrb, c, mid, m);
+}
+
+void zruby_define_module_function_proc(mrb_state *mrb, struct RClass *c,
+                                       mrb_sym mid, struct RProc *proc,
+                                       mrb_aspec aspec) {
+  struct RClass *singleton =
+      mrb_class_ptr(mrb_singleton_class(mrb, mrb_obj_value(c)));
+  zruby_define_proc_method(mrb, singleton, mid, proc, aspec,
+                           MRB_METHOD_PUBLIC_FL);
+  zruby_define_proc_method(mrb, c, mid, proc, aspec, MRB_METHOD_PRIVATE_FL);
+}
+
+void zruby_define_class_method_proc(mrb_state *mrb, struct RClass *c,
+                                    mrb_sym mid, struct RProc *proc,
+                                    mrb_aspec aspec) {
+  struct RClass *singleton =
+      mrb_class_ptr(mrb_singleton_class(mrb, mrb_obj_value(c)));
+  zruby_define_proc_method(mrb, singleton, mid, proc, aspec,
+                           MRB_METHOD_PUBLIC_FL);
+}
+
+void zruby_raise_callback_error(mrb_state *mrb, int kind, const char *message,
+                                size_t message_len) {
+  struct RClass *exception_class;
+  switch (kind) {
+    case 1:
+      exception_class = E_TYPE_ERROR;
+      break;
+    case 2:
+      exception_class = E_ARGUMENT_ERROR;
+      break;
+    case 3:
+      exception_class = E_STANDARD_ERROR;
+      break;
+    default:
+      exception_class = E_RUNTIME_ERROR;
+      break;
+  }
+  mrb_value message_value = mrb_str_new(mrb, message, message_len);
+  mrb_exc_raise(mrb, mrb_exc_new_str(mrb, exception_class, message_value));
 }
