@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install rake
+        run: gem install rake --no-document
+
+      - name: Build mruby 4.0.0
+        run: ./scripts/build-mruby.sh
+
+      - name: Verify pinned toolchain
+        run: ./scripts/verify-toolchain.sh
+
+      - name: Format check
+        run: zig fmt --check build.zig src tests examples
+
+      - name: Test (Debug)
+        run: zig build test
+
+      - name: Test (ReleaseSafe)
+        run: zig build test -Doptimize=ReleaseSafe
+
+      - name: Build library and example
+        run: zig build
+
+      - name: Run example
+        run: zig build run

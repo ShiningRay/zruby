@@ -1,0 +1,4 @@
+[tools]
+# Release baseline. Do not float these versions; see docs/compatibility.md.
+zig = "0.16.0"
+ruby = "3.3"
