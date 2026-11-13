@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-11-13)
+
+Zig 0.16.0 + mruby 4.0.0; macOS/Linux/Windows (MinGW); word/NAN/no-boxing ABI.
+
 
 - High-level callback API: `defineModuleCallback` / `defineMethodCallback` /
   `defineClassMethodCallback` with `fn (*VM, []const Value) Error!Value`.
@@ -26,8 +29,8 @@
 - Build script with mruby SHA-256 verification, toolchain pin, clean-room CI.
 - Compatibility policy and canary workflow for future Zig/mruby upgrades.
 
-## 0.2.0 (planned)
+## 0.3.0 (planned)
 
 - Zig 0.17.1 migration on a dedicated branch.
 - mruby 4.1 evaluation after its stable release.
-- Bytecode (`mrbc`/`mrb_load_irep`), block callbacks, explicit roots, structured backtraces.
+- Block callbacks, Fiber integration, and deeper reflection APIs.

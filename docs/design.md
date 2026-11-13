@@ -265,8 +265,8 @@ pub const Value = struct {
 
 ## 10. 后续演进
 
-1. **v0.2**：高层回调注册（自动参数转换、异常安全）、更多值类型（Symbol/Range/Proc）、哈希/数组直接 API。
-2. **v0.3**：`mrbc` 字节码加载、`mrb_load_irep`、资源打包。
-3. **v0.4**：绑定生成器，从 mruby 头文件生成 `c.zig`，支持多种 boxing 配置。
-4. **v0.5**：评估纯 Zig 的 mruby 构建（presym、host `mrbc`、gem registry），去掉 Ruby/rake 构建依赖。
-5. **v1.0**：稳定 API、Linux/Windows CI、性能基准、文档站。
+1. **v0.2（当前）**：高层回调、Range/Proc/迭代器、字节码、`c.zig` 生成、word/NAN/no-boxing 与 Windows CI，已完成。
+2. **v0.3**：Zig 0.17.1 迁移（`next/zig-0.17` 分支），不混入新 API。
+3. **v0.4**：block 回调、Fiber 集成、更深的反射 API；按需评估 Windows MSVC 与 32 位 ABI。
+4. **v0.5**：若条件满足，评估纯 Zig 的 mruby 构建（presym、host `mrbc`、gem registry）。
+5. **v1.0**：稳定 API、性能基准、文档站。
