@@ -28,7 +28,7 @@
 | M1 核心绑定 | 已完成 | `src/c.zig`、`src/shim.c`、`src/zruby.zig` | `zig build test` 通过 |
 | M2 可用性 | 已完成 | 示例、README、构建脚本、CI | `zig build run` 输出正确 |
 | M3 发布准备 | 已完成 | 版本号、变更日志、Git tag、远程仓库 | 干净 clone 后按 README 可复现 |
-| M4 扩展 | 主体完成 | 高层回调、更多类型、字节码、Windows CI | 新增测试与文档；绑定生成器/boxing/纯 Zig 构建待后续 |
+| M4 扩展 | 已完成 | 高层回调、更多类型、字节码、绑定生成、boxing 矩阵、Windows CI | 新增测试与文档；纯 Zig 构建按评估暂缓 |
 
 ## 4. 已完成的实施步骤
 
@@ -69,12 +69,12 @@
 ## 5. 发布前待办（M3）
 
 - [x] 在干净目录执行 `./scripts/build-mruby.sh && zig build test && zig build run`，记录结果（2026-11-13 通过）。
-- [ ] 在 Ubuntu 上验证（本地或 CI），确认 `linkSystemLibrary("m")` 分支。
-- [ ] 增加 `CHANGELOG.md`，写 0.1.0 初始功能与已知限制。
-- [ ] 决定远程仓库归属与可见性；创建远程仓库并推送（需要用户确认）。
-- [ ] 打 `v0.1.0` tag（release manifest 写明 Zig 0.16.0 + mruby 4.0.0）。
-- [ ] 为 README 增加 CI 状态徽章（只有实际跑绿后）。
-- [ ] 规划 0.2：迁移到 Zig 0.17.1；按 [兼容策略](compatibility.md) 用 `next/zig-0.17` 分支验证，不把 0.16/0.17 混在同一个 `build.zig`。
+- [x] 在 Ubuntu 上验证（CI `test (ubuntu-latest)`，含 `linkSystemLibrary("m")` 分支）。
+- [x] 增加 `CHANGELOG.md`，写 0.1.0 初始功能与已知限制。
+- [x] 决定远程仓库归属与可见性；创建远程仓库并推送（`ShiningRay/zruby`，公开）。
+- [x] 打 `v0.1.0` tag（release manifest 写明 Zig 0.16.0 + mruby 4.0.0）。
+- [x] 为 README 增加 CI 状态徽章（实际跑绿后）。
+- [x] 规划 0.2：迁移到 Zig 0.17.1；按 [兼容策略](compatibility.md) 用 `next/zig-0.17` 分支验证，不把 0.16/0.17 混在同一个 `build.zig`（见「0.2 规划」）。
 
 验收命令：
 
@@ -153,4 +153,12 @@ zig build
 
 ## 9. 完成定义
 
-首版完成 = 仓库可克隆、可按 README 构建、测试与示例通过、限制和风险写清楚。当前代码与文档已满足本地版本；M3 的远程仓库与跨平台实跑仍需执行。
+当前版本完成 = 仓库可克隆、可按 README 构建、测试与示例通过、限制和风险写清楚；M3 发布准备与 M4 扩展均已执行。纯 Zig mruby 构建按评估结论暂不落地，Windows MSVC 与非 BigInt 32 位属于明确未支持项，不影响当前 release gate。
+
+## 10. 0.2 规划
+
+1. 从 `main` 建 `next/zig-0.17` 分支，只做工具链迁移，不混入新 API。
+2. 更新 `.mise.toml`、CI 的 Zig 版本、`build.zig` 版本门与 `docs/compatibility.md`；保持 `main` 的 0.16 release gate 可发布。
+3. 在分支上跑 word/NAN/no-boxing、macOS/Ubuntu/Windows(MinGW) 全矩阵与 clean-room；修复 Zig 0.17 Build API/`@bitCast`/`std.builtin` 变化。
+4. mruby 4.1 稳定版发布后按同一流程评估；不把 4.0/4.1 混在同一个绑定文件。
+5. 全矩阵绿、文档与 CHANGELOG 更新后合并 `main`，打 `v0.2.0` tag；旧工具链保留在 `release/0.1` 分支只回移植关键修复。

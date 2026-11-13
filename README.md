@@ -1,5 +1,7 @@
 # zruby
 
+[![CI](https://github.com/ShiningRay/zruby/actions/workflows/ci.yml/badge.svg)](https://github.com/ShiningRay/zruby/actions/workflows/ci.yml)
+
 在 Zig 0.16 中嵌入 mruby 4.0 的最小绑定。用 Zig 管理 VM、调用 Ruby 代码，也可以把 Zig 函数注册成 Ruby 方法。
 
 > 状态：实验性。当前锁定 **Zig 0.16.0** 与 **mruby 4.0.0**，公开 API 在 1.0 前可能变化。
