@@ -16,7 +16,7 @@
 - 不覆盖 mruby 全部 C API。
 - 不绑定 CRuby（只有 mruby）。
 - 不在 v0.1 支持 Fiber、`mrbc` 字节码、GC 压缩、跨线程 VM。
-- 不承诺兼容所有 mruby 构建配置；只承诺默认 word-boxing 配置。
+- 只承诺 64 位 word/NAN/no-boxing；32 位、32 位 `mrb_int` 与未同步宏的配置不支持。
 
 ## 3. 版本基线
 
@@ -76,25 +76,28 @@
 
 ### 5.2 ABI 契约
 
-当前契约：
+当前 64 位契约：
 
 ```c
-typedef struct mrb_value { uintptr_t w; } mrb_value;
+/* word / NAN boxing */
+typedef struct mrb_value { uintptr_t w; } mrb_value; /* NAN: uint64_t u */
+/* MRB_NO_BOXING */
+typedef struct mrb_value { union mrb_value_union value; enum mrb_vtype tt; } mrb_value;
+
 typedef int64_t mrb_int;
 typedef double mrb_float;
 ```
 
-对应 Zig：
+对应 Zig 由 `-Dmruby-boxing=word|nan|none` 选择：
 
 ```zig
-pub const mrb_value = extern struct { w: usize };
+pub const mrb_value = if (none) extern struct { value: mrb_value_union, tt: c_int }
+                     else extern struct { w: usize };
 pub const mrb_int = i64;
 pub const mrb_float = f64;
 ```
 
-`src/shim.c` 的静态断言在编译期检查；`tests/all.zig` 再通过 `zruby_value_size()` 做运行期防线。
-
-该契约只对 mruby 默认构建成立。若使用 `MRB_NAN_BOXING`、`MRB_NO_BOXING`、`MRB_INT32` 或 32 位目标，必须调整绑定。文档和构建选项不假装自动适配这些配置。
+`src/shim.c` 的静态断言在编译期检查尺寸/对齐；`tests/all.zig` 再通过 `zruby_value_size()` / `zruby_value_align()` 做运行期防线。NAN boxing 必须使用 `MRB_INT64`；`MRB_32BIT` 和未同步宏的配置直接编译失败。
 
 ### 5.3 值的所有权与 GC
 
@@ -157,6 +160,7 @@ v0.2 起在此之上增加显式的高层回调 API：`defineModuleCallback` / `
 `build.zig`：
 
 - `-Dmruby-prefix` 指定包含 `include/` 与 `lib/` 的前缀，默认 `vendor/mruby/build/host`。
+- `-Dmruby-boxing=word|nan|none` 选择 `mrb_value` 布局，并向 shim 注入对应 C 宏；NAN 需 `MRB_INT64`。
 - 为模块添加 mruby include/lib、链接 `mruby`；Linux 额外链接 `m`。
 - 注入 mruby 默认构建宏，编译 `src/shim.c`。
 - 生成 `libzruby.a`、`zruby-example`、测试可执行文件。

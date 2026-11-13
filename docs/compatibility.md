@@ -15,11 +15,11 @@ zruby 当前实测基线：**Zig 0.16.0 + mruby 4.0.0**，93/93 测试通过。0
 
 | 档位 | 内容 | 是否阻塞发布 |
 | --- | --- | --- |
-| **Release gate** | 一个精确的 Zig 稳定版 + 一个精确的 mruby 稳定版 + 默认 build config | 是；全矩阵必须绿 |
+| **Release gate** | 一个精确的 Zig 稳定版 + 一个精确的 mruby 稳定版 + 受支持的 boxing 配置 | 是；全矩阵必须绿 |
 | **Previous release** | 上一个 zruby release 的锁定组合；只修安全/严重 bug | 否；保留一个发布周期（到下一个稳定版 + 30 天） |
 | **Canary** | Zig master 或 mruby master/rc | 否；每周跑，失败开 issue |
 
-明确不支持：任意 Zig/mruby 版本组合、未同步 C 宏的自定义 mruby、CRuby、未验证的 Windows MSVC 组合。`MRB_NAN_BOXING` / `MRB_NO_BOXING` / `MRB_32BIT` 会在 `src/shim.c` 编译期直接 `#error`，不会静默错读。`-Dallow-untested-zig` / `-Dallow-untested-mruby` 只用于迁移试验，不是支持声明。
+明确不支持：任意 Zig/mruby 版本组合、未同步 C 宏的自定义 mruby、CRuby、`MRB_32BIT`、未验证的 Windows MSVC 组合。64 位 word boxing、NAN boxing（需 `MRB_INT64`）和 no-boxing 通过 `-Dmruby-boxing=word|nan|none` 支持；Zig 侧布局必须与 `libmruby.a` 的构建配置一致，否则 shim 的静态断言会失败。`-Dallow-untested-zig` / `-Dallow-untested-mruby` 只用于迁移试验，不是支持声明。
 
 ## 3. 版本与发布规则
 
@@ -39,7 +39,7 @@ zruby 当前实测基线：**Zig 0.16.0 + mruby 4.0.0**，93/93 测试通过。0
 3. **Zig 侧版本门**：`build.zig` 对 0.16.x 做硬检查；其他版本会直接报错并指向本文。迁移到 0.17 时改常量、单独分支验证，不要在一个 `build.zig` 里堆版本判断。
 4. **构建系统不跨版本复用**：Zig Build API 的 breaking change 往往先于语言语法出现；0.16 与 0.17 用不同分支/tag，而不是试图让一个 `build.zig` 同时解析两套 API。
 5. **示例隔离**：`std.Io`、`std.process.Init` 等只在 `examples/` 使用；库本体不依赖这些易变 API。
-6. **ABI 断言**：`mrb_value` 指针宽度、`mrb_int`/`mrb_float` 大小在 C 侧 `_Static_assert`；这比“编译过了”更早暴露配置错误。
+6. **ABI 断言**：`mrb_value` 的尺寸/对齐、`mrb_int`/`mrb_float` 大小在 C 侧 `_Static_assert`；word/NAN/no-boxing 分别校验，这比“编译过了”更早暴露配置错误。
 
 ## 5. CI 设计
 
@@ -47,6 +47,7 @@ zruby 当前实测基线：**Zig 0.16.0 + mruby 4.0.0**，93/93 测试通过。0
 
 - 精确 Zig + 精确 mruby。
 - macOS + Linux + Windows（MinGW，Zig `x86_64-windows-gnu`）。
+- `mruby-boxing` 矩阵：word（默认）+ nan + none，全部跑 Debug/ReleaseSafe。
 - Debug 与 ReleaseSafe。
 - `zig fmt --check`。
 - `zig build test`、`zig build`、`zig build run`。
@@ -92,7 +93,7 @@ zruby 当前实测基线：**Zig 0.16.0 + mruby 4.0.0**，93/93 测试通过。0
 | 0.2（计划） | 0.17.1 | 4.0.0 | 迁移目标；未验证 |
 | canary | Zig master | mruby 4.0.0 / 4.1 rc | 非阻塞探测 |
 
-Windows 验证使用 MinGW 构建 mruby，并以 `-Dtarget=x86_64-windows-gnu` 编译/测试；MSVC 目标未验证。
+Windows 验证使用 MinGW 构建 mruby，并以 `-Dtarget=x86_64-windows-gnu` 编译/测试；MSVC 目标未验证。Ubuntu 矩阵另跑 `build_config/zruby-nan.rb` 与 `build_config/zruby-none.rb`，对应 `-Dmruby-boxing=nan|none`。
 
 ## 9. 消费方建议
 

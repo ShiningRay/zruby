@@ -136,7 +136,7 @@ sizeof(mrb_state)=18856
 代价：
 
 - 需要手工维护声明；升级 mruby 时要对照头文件检查。
-- 只支持 word boxing 默认配置；自定义 ABI 需要重做绑定。
+- 当前支持 64 位 word/NAN/no-boxing；32 位和未同步宏的自定义 ABI 仍需调整绑定。
 
 ### 3.3 备选方案
 

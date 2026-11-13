@@ -72,6 +72,11 @@
 - `loadIrepWithOptions` 文件名、重复加载 20 次、空字节码与非法字节码。
 - 非法字节码失败后 VM 仍可继续 eval。
 
+### ABI 配置
+
+- word（默认）、`MRB_NAN_BOXING` + `MRB_INT64`、`MRB_NO_BOXING` 三套 mruby 构建均跑完整 93 测试。
+- `MRB_32BIT` / 未同步宏的配置在 shim 编译期失败。
+
 ## 3. Ruby 套件
 
 | 文件 | 内容 |

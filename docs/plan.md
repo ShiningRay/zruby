@@ -126,19 +126,19 @@ zig build
 - [x] Linux CI 实跑（Ubuntu + macOS 矩阵）；
 - [x] Windows CI：MinGW 构建 mruby，Zig `x86_64-windows-gnu` 目标，Debug/ReleaseSafe/示例全绿；
 - [x] 绑定符号一致性检查：`scripts/check-bindings.sh` 对照 `libmruby.a` 校验 `src/c.zig` 的 `mrb_*` 声明；
-- [x] 非默认配置的编译期拒绝：`src/shim.c` 对 `MRB_NAN_BOXING` / `MRB_NO_BOXING` / `MRB_32BIT` 直接 `#error`；
+- [x] 非默认配置的编译期校验：`src/shim.c` 对 `MRB_32BIT` / 未声明的 boxing 布局直接 `#error`；
+- [x] 支持 `MRB_NAN_BOXING`（`MRB_INT64`）与 `MRB_NO_BOXING` 的配置化绑定，`-Dmruby-boxing=nan|none` 已实测；
 - [ ] 从 mruby 头文件生成 `c.zig`；
-- [ ] 支持 `MRB_NAN_BOXING` / `MRB_NO_BOXING` 的配置化绑定（当前只做编译期拒绝）；
 - [ ] 评估纯 Zig 的 mruby 构建（presym、host `mrbc`、gem registry），去掉 Ruby/rake 依赖；
 - [ ] 非 BigInt 配置的 Hash 行为负向测试。
 
-绑定生成器、boxing 配置和纯 Zig 构建属于独立的大型工程；Windows 使用 MinGW/GNU 目标验证，未宣称 MSVC 目标可用。当前版本保持“手写最小绑定 + 默认 word-boxing”的边界。
+绑定生成器和纯 Zig 构建属于独立的大型工程；Windows 使用 MinGW/GNU 目标验证，未宣称 MSVC 目标可用。当前支持 word/NAN/no-boxing 三种 64 位布局，`MRB_32BIT` 仍明确拒绝。
 
 ## 7. 风险与依赖
 
 | 项 | 说明 | 应对 |
 | --- | --- | --- |
-| ABI 锁定 | 只支持 word boxing / 64 位 int | 文档明确；静态断言；符号检查 |
+| ABI 锁定 | 仅支持 64 位 word/NAN/no-boxing | 文档明确；静态断言；`-Dmruby-boxing`；符号检查 |
 | longjmp | mruby 异常跨 C 边界 | 核心分配/调用/定义路径经 protect；回调禁止 panic |
 | GC | 未保护值可能被回收 | 返回值 protect；文档要求长期值 protect |
 | 平台 | 本地 macOS + CI Ubuntu/macOS/Windows(MinGW) | MSVC 待补 |
