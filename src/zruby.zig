@@ -168,6 +168,60 @@ pub const VM = struct {
         return .{ .vm = self, .raw = result };
     }
 
+    pub const IrepOptions = struct {
+        /// Used for debug information and backtraces.
+        filename: ?[:0]const u8 = null,
+    };
+
+    /// Load compiled mruby bytecode (`.mrb`) from memory.
+    pub fn loadIrep(self: *VM, bytes: []const u8) Error!Value {
+        return self.loadIrepWithOptions(bytes, .{});
+    }
+
+    pub fn loadIrepWithOptions(self: *VM, bytes: []const u8, options: IrepOptions) Error!Value {
+        if (bytes.len == 0) return error.InvalidSource;
+        self.clearLastError();
+        const mark = self.arenaSave();
+        var restored = false;
+        defer if (!restored) self.arenaRestore(mark);
+
+        var data = IrepData{
+            .bytes = bytes,
+            .filename = options.filename orelse "(irep)",
+        };
+        var state: c.mrb_bool = false;
+        const result = c.mrb_protect_error(self.raw, &irepBody, &data, &state);
+        if (data.cxt) |cxt| c.mrb_ccontext_free(self.raw, cxt);
+
+        if (data.oom) {
+            self.setLastError("failed to allocate mruby compile context", null);
+            self.arenaRestore(mark);
+            restored = true;
+            return error.OutOfMemory;
+        }
+
+        if (state or c.zruby_has_exc(self.raw)) {
+            const exc = if (state) result else c.zruby_get_exc(self.raw);
+            self.captureException(exc);
+            c.zruby_clear_exc(self.raw);
+            self.arenaRestore(mark);
+            restored = true;
+            return error.RubyException;
+        }
+
+        if (c.zruby_undef_p(result)) {
+            self.setLastError("invalid mruby bytecode", null);
+            self.arenaRestore(mark);
+            restored = true;
+            return error.RubyException;
+        }
+
+        self.arenaRestore(mark);
+        restored = true;
+        c.mrb_gc_protect(self.raw, result);
+        return .{ .vm = self, .raw = result };
+    }
+
     fn setSyntaxError(self: *VM, data: *EvalData) void {
         const parser = data.parser orelse {
             self.setLastError("syntax error", "SyntaxError");
@@ -846,6 +900,26 @@ const EvalData = struct {
         self.cxt = null;
     }
 };
+
+const IrepData = struct {
+    bytes: []const u8,
+    filename: [:0]const u8,
+    cxt: ?*c.mrb_ccontext = null,
+    oom: bool = false,
+};
+
+fn irepBody(mrb: ?*c.mrb_state, userdata: ?*anyopaque) callconv(.c) c.mrb_value {
+    const data: *IrepData = @ptrCast(@alignCast(userdata orelse unreachable));
+    const state = mrb orelse unreachable;
+
+    const cxt = c.mrb_ccontext_new(state) orelse {
+        data.oom = true;
+        return c.zruby_nil_value();
+    };
+    data.cxt = cxt;
+    _ = c.mrb_ccontext_filename(state, cxt, data.filename.ptr);
+    return c.mrb_load_irep_buf_cxt(state, data.bytes.ptr, data.bytes.len, cxt);
+}
 
 fn prepareBody(mrb: ?*c.mrb_state, userdata: ?*anyopaque) callconv(.c) c.mrb_value {
     const data: *EvalData = @ptrCast(@alignCast(userdata orelse unreachable));

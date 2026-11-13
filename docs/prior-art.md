@@ -71,7 +71,7 @@
 4. **类/模块/方法定义保护**：`defineModule` / `defineClass` / `defineModuleFunction` / `defineMethod` / `defineClassMethod` 统一走 `DefineData` + `protectDefine`。
 5. **异常检查保护**：`captureException` 的 `mrb_inspect` 也放进 protect；失败时回退到通用消息。
 6. **`objectClass()`**：避免 `defineClass(..., null)` 触发 mruby 的 “Object assumed” 警告。
-7. **测试补齐**：非 NUL 结尾源码、内部 NUL、Ruby 字符串内 NUL、宽整数 hash key、`defineClass` + 实例方法、错误参数个数、方法内异常，并扩展为 75 个测试（含 5 个 Ruby 套件）；高层回调 API 落地后为 89 个测试，当前 89/89 通过。
+7. **测试补齐**：非 NUL 结尾源码、内部 NUL、Ruby 字符串内 NUL、宽整数 hash key、`defineClass` + 实例方法、错误参数个数、方法内异常，并扩展为 75 个测试（含 5 个 Ruby 套件）；高层回调 API 落地后为 93 个测试，当前 93/93 通过。
 
 ## 3.1 已有测试套件对照
 

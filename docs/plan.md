@@ -53,8 +53,8 @@
 
 5. **示例与测试**
    - `examples/embed.zig` + `examples/hello.rb`。
-   - `tests/` 按 values/lifecycle/errors/callbacks/ruby_suites 拆分，共 89 个测试（含 5 个 Ruby 套件）。
-   - `zig build test` = 89/89；`zig build test -Doptimize=ReleaseSafe` 同样通过；`zig build run` 输出符合预期。
+   - `tests/` 按 values/lifecycle/errors/callbacks/ruby_suites 拆分，共 93 个测试（含 5 个 Ruby 套件）。
+   - `zig build test` = 93/93；`zig build test -Doptimize=ReleaseSafe` 同样通过；`zig build run` 输出符合预期。
 
 6. **仓库工程化**
    - `build.zig` 静态库/示例/测试三个产物。
@@ -115,11 +115,11 @@ zig build
 - [x] 结构化错误详情与有界 backtrace（`lastException` / `lastBacktrace`，上限 4096 字节）；
 - [x] `mrb_value` 直接 API 与反射（公开 `Value.raw` / `VM.raw`，`className` 与类型谓词；跨 scope 自动失效检查暂未实现，依赖 arena 语义）。
 
-### 6.3 字节码
+### 6.3 字节码（已完成）
 
-- `mrbc` 生成 `.mrb`；
-- `mrb_load_irep` / `mrb_load_irep_cxt`；
-- 资源嵌入示例。
+- [x] `scripts/build-bytecode.sh` 用 `mrbc -g` 生成 `tests/fixtures/bytecode.mrb`；
+- [x] `VM.loadIrep` / `loadIrepWithOptions` 基于 `mrb_load_irep_buf_cxt`；
+- [x] 资源嵌入示例：测试用 `@embedFile` 加载 `.mrb`，并覆盖重复加载与非法字节码。
 
 ### 6.4 跨平台与构建
 

@@ -9,9 +9,11 @@
 - `VM.init` / `VM.deinit`，每个 VM 独立 GC 与异常状态
 - `VM.eval` / `VM.evalWithOptions`，支持文件名、语法错误定位
 - `Value` 标量转换、字符串拷贝、数组/哈希读写、任意方法调用
-- Ruby 异常映射为 `error.RubyException`，通过 `lastError` / `lastErrorClass` 读取消息
-- 注册 C ABI 的 Zig 函数为 Ruby 模块函数、实例方法或类方法
-- GC arena 标记与 `protect`
+- Range/Proc/Time/自定义对象反射、数组/哈希迭代器
+- Ruby 异常映射为 `error.RubyException`，通过 `lastError` / `lastErrorClass` / `lastException` / `lastBacktrace` 读取
+- 注册 C ABI 或高层 Zig 函数为 Ruby 模块函数、实例方法或类方法
+- `RootedValue` / `arenaScope` 显式管理 GC 根
+- `VM.loadIrep` 从内存加载 `mrbc` 字节码
 - 示例、端到端测试、CI 和 mruby 构建脚本
 
 ## 快速开始
@@ -136,6 +138,19 @@ const value = vm.eval("raise ArgumentError, \"boom\"") catch |err| {
 
 `eval` 与 `Value.call` 都用 `mrb_protect_error` 包住可能抛异常的路径。语法错误在解析阶段捕获，消息包含 `文件名:行:列`。
 
+## 字节码
+
+```console
+./scripts/build-bytecode.sh   # mrbc -g tests/fixtures/bytecode.rb
+```
+
+```zig
+const bytecode = @embedFile("bytecode.mrb");
+const value = try vm.loadIrep(bytecode);
+```
+
+`loadIrepWithOptions` 可带文件名；非法字节码返回 `error.RubyException`，失败后 VM 仍可继续使用。当前没有构建期自动生成 `.mrb` 的步骤，测试夹具已提交在 `tests/fixtures/`。
+
 ## 构建选项
 
 | 选项 | 默认值 | 说明 |
@@ -152,6 +167,7 @@ const value = vm.eval("raise ArgumentError, \"boom\"") catch |err| {
 | `VM.init(allocator)` | 打开 mruby VM |
 | `VM.eval(source)` | 执行 Ruby 源码 |
 | `VM.evalWithOptions(source, .{ .filename = "x.rb" })` | 带文件名执行，便于错误定位 |
+| `VM.loadIrep(bytes)` / `loadIrepWithOptions` | 执行 `mrbc` 生成的字节码 |
 | `Value.call(name, args)` | 调用 Ruby 方法；Proc 的 `call`/`[]` 自动走 yield 路径 |
 | `Value.callProc(args)` | 直接调用 Proc |
 | `Value.asInt` / `asFloat` / `toString` / `className` | 取值，字符串会拷贝到 Zig allocator |
@@ -170,7 +186,7 @@ const value = vm.eval("raise ArgumentError, \"boom\"") catch |err| {
 - 只支持 mruby 默认构建配置（word boxing、64 位 `mrb_int`、bigint/rational/complex/set 等）。自定义 mruby 配置必须同步修改 `src/c.zig` 与 `src/shim.c` 的 ABI 假设。
 - 一个 `VM` 不应跨线程共享。mruby 的异常使用 `setjmp`/`longjmp`，核心的构造、调用、定义与异常检查都放在 `mrb_protect_error` 内。
 - `VM.eval` 只接受不含内部 NUL 的源码；内部会复制并补 NUL 哨兵。Ruby 字符串本身仍可包含 NUL，`toString` 会按长度精确拷贝。
-- 当前不提供字节码加载、Fiber、完整类型绑定或自动生成的 C API。数组/哈希操作走 Ruby 方法，适合正确性优先的场景。
+- 当前不提供 Fiber、完整类型绑定或自动生成的 C API。数组/哈希操作走 Ruby 方法，适合正确性优先的场景。
 - mruby 不是安全沙箱。不要执行不受信任的 Ruby 代码。
 - 已在 macOS arm64 验证；Linux/Windows 尚未在本地验证。
 

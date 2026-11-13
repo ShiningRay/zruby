@@ -61,6 +61,17 @@ pub extern fn mrb_load_exec(
     parser: *mrb_parser_state,
     cxt: ?*mrb_ccontext,
 ) mrb_value;
+pub extern fn mrb_load_irep_buf(
+    mrb: *mrb_state,
+    data: ?*const anyopaque,
+    size: usize,
+) mrb_value;
+pub extern fn mrb_load_irep_buf_cxt(
+    mrb: *mrb_state,
+    data: ?*const anyopaque,
+    size: usize,
+    cxt: ?*mrb_ccontext,
+) mrb_value;
 pub extern fn mrb_parser_free(parser: *mrb_parser_state) void;
 pub extern fn mrb_protect_error(
     mrb: *mrb_state,

@@ -171,6 +171,10 @@ v0.2 起在此之上增加显式的高层回调 API：`defineModuleCallback` / `
 
 不把 mruby 源码提交进仓库；`vendor/` 在 `.gitignore` 中。这样仓库只包含绑定与构建逻辑，升级 mruby 只需改版本号。
 
+### 5.7 字节码
+
+`VM.loadIrep` / `loadIrepWithOptions` 使用 `mrb_load_irep_buf_cxt`，在保护帧内创建 `mrb_ccontext`（可带文件名）、加载 Rite 字节码并清理 context。结果在 arena restore 前 protect；非法字节码返回 `error.RubyException`，加载后 VM 仍可用。`tests/fixtures/bytecode.mrb` 由 `scripts/build-bytecode.sh` 用 `mrbc -g` 生成并提交，测试通过 `@embedFile` 嵌入。
+
 ## 6. 公开 API
 
 ```zig
@@ -179,6 +183,8 @@ pub const VM = struct {
     pub fn deinit(self: *VM) void;
     pub fn eval(self: *VM, source: []const u8) Error!Value;
     pub fn evalWithOptions(self: *VM, source: []const u8, options: EvalOptions) Error!Value;
+    pub fn loadIrep(self: *VM, bytes: []const u8) Error!Value;
+    pub fn loadIrepWithOptions(self: *VM, bytes: []const u8, options: IrepOptions) Error!Value;
     pub fn lastError(self: *const VM) ?[]const u8;
     pub fn lastErrorClass(self: *const VM) ?[]const u8;
     pub fn lastException(self: *VM) ?Value;
@@ -224,8 +230,8 @@ pub const Value = struct {
 
 已落地：
 
-- 89 个测试（含 5 个 Ruby 集成套件）覆盖 ABI、VM 生命周期、求值/诊断、值语义、回调、GC/arena、多线程 VM、类/模块定义、数组/哈希、NUL/UTF-8、跨 VM 拒绝等边界。测试矩阵见 [测试策略](testing.md)。
-- `zig build test` 通过 89/89；`zig build test -Doptimize=ReleaseSafe` 同样通过。
+- 93 个测试（含 5 个 Ruby 集成套件）覆盖 ABI、VM 生命周期、求值/诊断、值语义、回调、GC/arena、多线程 VM、类/模块定义、数组/哈希、NUL/UTF-8、跨 VM 拒绝等边界。测试矩阵见 [测试策略](testing.md)。
+- `zig build test` 通过 93/93；`zig build test -Doptimize=ReleaseSafe` 同样通过。
 - `zig build run` 端到端运行 `examples/hello.rb`，验证 `Zig.square(7)` 与 Ruby 方法调用。
 
 后续补充：

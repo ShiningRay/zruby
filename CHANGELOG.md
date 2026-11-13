@@ -9,7 +9,8 @@
 - Range construction, callback-backed Procs, Time/object reflection, array and
   hash iterators, RootedValue/arenaScope, lastException and bounded backtraces.
 - Default `(eval)` filename so compiled code carries debug info for backtraces.
-- Test suite: 89 tests (84 Zig + 5 Ruby integration suites).
+- Bytecode loading: `VM.loadIrep` / `loadIrepWithOptions`, `mrbc` fixture and regeneration script.
+- Test suite: 93 tests (88 Zig + 5 Ruby integration suites).
 
 ## 0.1.0 (2026-11-13)
 

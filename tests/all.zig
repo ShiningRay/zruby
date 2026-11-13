@@ -289,4 +289,5 @@ test {
     _ = @import("errors.zig");
     _ = @import("callbacks.zig");
     _ = @import("ruby_suites.zig");
+    _ = @import("bytecode.zig");
 }

@@ -1,6 +1,6 @@
 # 测试策略与覆盖
 
-当前 `tests/all.zig` 是测试根，按主题拆成多个文件；每个测试使用独立 VM 和 `std.testing.allocator`，错误消息、字符串拷贝与 VM 资源泄漏由测试分配器兜底。共 **89 个测试声明：84 个 Zig 测试 + 5 个 Ruby 集成套件**。
+当前 `tests/all.zig` 是测试根，按主题拆成多个文件；每个测试使用独立 VM 和 `std.testing.allocator`，错误消息、字符串拷贝与 VM 资源泄漏由测试分配器兜底。共 **93 个测试声明：88 个 Zig 测试 + 5 个 Ruby 集成套件**。
 
 ## 1. 测试分层
 
@@ -66,6 +66,12 @@
 - 250 次连续 eval；大规模数组（1000）/哈希（200）访问。
 - `std.testing.allocator` 检测 Zig 侧错误消息/字符串拷贝泄漏。
 
+### 字节码
+
+- `@embedFile` 加载 `tests/fixtures/bytecode.mrb`，执行顶层返回值与方法调用。
+- `loadIrepWithOptions` 文件名、重复加载 20 次、空字节码与非法字节码。
+- 非法字节码失败后 VM 仍可继续 eval。
+
 ## 3. Ruby 套件
 
 | 文件 | 内容 |
@@ -102,7 +108,7 @@ zig build test
 zig build run
 ```
 
-当前结果：**89/89** 通过（Debug 与 ReleaseSafe）；干净目录同步后同样通过。
+当前结果：**93/93** 通过（Debug 与 ReleaseSafe）；干净目录同步后同样通过。
 
 ## 6. 尚未覆盖
 

@@ -150,7 +150,7 @@ sizeof(mrb_state)=18856
 - 默认 `build_config/default.rb` 包含 `mruby-compiler` 等 gem，`mrb_parse_nstring` / `mrb_load_exec` 可用。
 - 静态库产物：`vendor/mruby/build/host/lib/libmruby.a`；头文件：`vendor/mruby/build/host/include`。
 - 默认构建的 C 宏（`MRB_USE_SET`、`MRB_USE_BIGINT`、`MRB_USE_RATIONAL`、`MRB_USE_COMPLEX`、`MRB_USE_DEBUG_HOOK` 等）在 `build.zig` 中同步传给 shim；ABI 相关的选项必须与库一致。
-- 本机验证：`zig build test` 通过 89/89（Debug 与 ReleaseSafe）；`zig build run` 输出嵌入 mruby 4.0、`Zig.square(7) = 49`、Ruby 方法调用结果。
+- 本机验证：`zig build test` 通过 93/93（Debug 与 ReleaseSafe）；`zig build run` 输出嵌入 mruby 4.0、`Zig.square(7) = 49`、Ruby 方法调用结果。
 
 ## 5. 结论
 
