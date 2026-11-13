@@ -45,6 +45,10 @@ pub fn build(b: *std.Build) void {
     if (target.result.os.tag == .linux) {
         zruby_mod.linkSystemLibrary("m", .{});
     }
+    if (target.result.os.tag == .windows) {
+        zruby_mod.linkSystemLibrary("ws2_32", .{});
+        zruby_mod.linkSystemLibrary("wsock32", .{});
+    }
 
     // Keep the bridge in sync with mruby's default build configuration.
     zruby_mod.addCMacro("MRB_USE_SET", "1");
