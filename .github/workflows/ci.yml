@@ -9,7 +9,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            target_arg: ""
+          - os: macos-latest
+            target_arg: ""
+          - os: windows-latest
+            target_arg: "-Dtarget=x86_64-windows-gnu"
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -25,18 +31,18 @@ jobs:
         with:
           ruby-version: "3.3"
 
-      - name: Set up MSVC
+      - name: Install MinGW
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        shell: pwsh
+        run: choco install mingw --no-progress -y
 
-      - name: Configure MSVC toolchain path
+      - name: Configure MinGW
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          tools="$(cygpath -u "$VCToolsInstallDir")/bin/Hostx64/x64"
-          test -x "$tools/link.exe"
-          test -x "$tools/lib.exe"
-          echo "$tools" >> "$GITHUB_PATH"
+          echo "CC=gcc" >> "$GITHUB_ENV"
+          echo "AR=ar" >> "$GITHUB_ENV"
+          echo "RANLIB=ranlib" >> "$GITHUB_ENV"
 
       - name: Install rake
         run: gem install rake --no-document
@@ -54,13 +60,13 @@ jobs:
         run: zig fmt --check build.zig src tests examples
 
       - name: Test (Debug)
-        run: zig build test
+        run: zig build test ${{ matrix.target_arg }}
 
       - name: Test (ReleaseSafe)
-        run: zig build test -Doptimize=ReleaseSafe
+        run: zig build test -Doptimize=ReleaseSafe ${{ matrix.target_arg }}
 
       - name: Build library and example
-        run: zig build
+        run: zig build ${{ matrix.target_arg }}
 
       - name: Run example
-        run: zig build run
+        run: zig build run ${{ matrix.target_arg }}
