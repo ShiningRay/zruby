@@ -86,7 +86,7 @@
 | 方案 | 决定 | 原因 |
 | --- | --- | --- |
 | `zig translate-c` 生成绑定 | 不采用 | macOS mach 头文件、位域 opaque、宏/inline 翻译失败；维护者需手工 patch |
-| 导出 `etext/edata/end` | 不采用 | zruby 用 `MRB_NO_DEFAULT_RO_DATA_P` + shim，避免该链接 hack |
+| 导出 `etext/edata/end` | **采用（仅 Linux 链接兼容）** | 预构建 `libmruby.a` 默认启用 `MRB_USE_ETEXT_RO_DATA_P`；Zig 链接器不提供这些符号。zruby 仍用 `MRB_NO_DEFAULT_RO_DATA_P` 编译 shim，避免把 mach-o 头文件带进来，但需要在 Zig 侧导出这三个符号。 |
 | 在 `zig build` 内调 `rake` | 不采用 | 把 Ruby/rake/mruby 子模块耦合进构建；zruby 用显式 `scripts/build-mruby.sh` |
 | 纯 Zig 构建 mruby | 暂缓 | nullstyle 证明可行，但 presym/mrbc/gem 注册/补丁量很大；v0.1 优先绑定正确性 |
 | `mrb_load_irep` 字节码 | 暂缓 | 需要 `mrbc` 构建步骤与资源打包；已列入 M4 |

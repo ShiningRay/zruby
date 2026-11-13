@@ -11,6 +11,15 @@ const std = @import("std");
 
 pub const c = @import("c.zig");
 
+// mruby's default Linux build enables MRB_USE_ETEXT_RO_DATA_P, so the
+// prebuilt libmruby.a references the linker-provided `etext`/`edata`
+// symbols. Zig's linker does not synthesize them. Exporting the expected
+// names is the narrowest compatibility fix; these are only used by mruby's
+// read-only-data check, never mutated here.
+export var etext: u8 = 0;
+export var edata: u8 = 0;
+export var end: u8 = 0;
+
 comptime {
     if (@sizeOf(c.mrb_value) != @sizeOf(usize)) {
         @compileError("zruby expects mruby word-boxing mrb_value to be pointer-sized");

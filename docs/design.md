@@ -202,7 +202,7 @@ pub const Value = struct {
 详见 [已有方案调研](prior-art.md)。三点直接影响本设计：
 
 - 手写 extern + C shim 的路线与 nullstyle/mruby-zig 一致；它的自带评审也指出“只包住最后一次 dispatch 不够”，因此 zruby 把 interning、构造、类定义、inspect 也纳入保护帧。
-- rguiscard 的 translate-c 方案需要把 `mrb_gc` 改成 `u128`、导出 `etext/edata/end`；zruby 通过手写声明与 `MRB_NO_DEFAULT_RO_DATA_P` 避开这些 hack。
+- rguiscard 的 translate-c 方案需要把 `mrb_gc` 改成 `u128`、导出 `etext/edata/end`。zruby 手写声明绕开 `mrb_gc`/mach-o 问题；`etext/edata/end` 仍必须导出，因为 Linux 默认的预构建 `libmruby.a` 引用了它们。
 - dantecatalfamo 的 issue/PR 表明构建集成和文档示例会随编译器/mruby 版本腐烂；zruby 固定版本、把 mruby 构建放在显式脚本里，并用测试覆盖 README 中的核心用法。
 
 ## 7. 测试与验证
