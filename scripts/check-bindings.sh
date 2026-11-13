@@ -5,10 +5,18 @@ set -euo pipefail
 # This catches drift after a mruby upgrade without requiring translate-c.
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 lib="${MRUBY_LIB:-"$root/vendor/mruby/build/host/lib/libmruby.a"}"
+if [[ ! -f "$lib" ]]; then
+  lib="$root/vendor/mruby/build/host/lib/libmruby.lib"
+fi
 
 if [[ ! -f "$lib" ]]; then
   echo "missing mruby library: $lib" >&2
   exit 1
+fi
+
+if ! command -v nm >/dev/null 2>&1; then
+  echo "nm is not available; skipping binding symbol check"
+  exit 0
 fi
 
 symbols="$(nm -g "$lib" 2>/dev/null | awk '{print $NF}' | sed 's/^_//' | sort -u)"

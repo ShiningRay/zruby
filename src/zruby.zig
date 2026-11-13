@@ -8,6 +8,7 @@
 //! ```
 
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub const c = @import("c.zig");
 
@@ -15,12 +16,18 @@ pub const c = @import("c.zig");
 // prebuilt libmruby.a references the linker-provided `etext`/`edata`
 // symbols. Zig's linker does not synthesize them. Exporting the expected
 // names is the narrowest compatibility fix; these are only used by mruby's
-// read-only-data check, never mutated here.
-export var etext: u8 = 0;
-export var edata: u8 = 0;
-export var end: u8 = 0;
+// read-only-data check, never mutated here. Other platforms do not need
+// these symbols and may already define `end` in their CRT.
+var etext: u8 = 0;
+var edata: u8 = 0;
+var end: u8 = 0;
 
 comptime {
+    if (builtin.os.tag == .linux) {
+        @export(&etext, .{ .name = "etext", .linkage = .strong });
+        @export(&edata, .{ .name = "edata", .linkage = .strong });
+        @export(&end, .{ .name = "end", .linkage = .strong });
+    }
     if (@sizeOf(c.mrb_value) != @sizeOf(usize)) {
         @compileError("zruby expects mruby word-boxing mrb_value to be pointer-sized");
     }

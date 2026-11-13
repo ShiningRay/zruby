@@ -26,8 +26,13 @@ fi
 hash_file() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$1" | awk '{print $1}'
-  else
+  elif command -v shasum >/dev/null 2>&1; then
     shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v certutil >/dev/null 2>&1; then
+    certutil -hashfile "$1" SHA256 | sed -n '2p' | tr -d ' \r'
+  else
+    echo "no SHA-256 tool found" >&2
+    return 1
   fi
 }
 
@@ -65,11 +70,23 @@ echo "building mruby in $MRUBY_DIR"
 
 LIB="$MRUBY_DIR/build/host/lib/libmruby.a"
 if [ ! -f "$LIB" ]; then
-  echo "mruby build did not produce $LIB" >&2
+  LIB="$MRUBY_DIR/build/host/lib/libmruby.lib"
+fi
+if [ ! -f "$LIB" ]; then
+  echo "mruby build did not produce libmruby.a or libmruby.lib" >&2
   exit 1
 fi
 
+# Zig's linkSystemLibrary("mruby") looks for mruby.lib on Windows and
+# libmruby.a on Unix. Keep a Windows-facing alias next to the MSVC archive.
+if [[ "$LIB" == *.lib ]]; then
+  cp -f "$LIB" "$(dirname "$LIB")/mruby.lib"
+fi
+
 MRUBY_BIN="$MRUBY_DIR/build/host/bin/mruby"
+if [ ! -x "$MRUBY_BIN" ] && [ -x "$MRUBY_BIN.exe" ]; then
+  MRUBY_BIN="$MRUBY_BIN.exe"
+fi
 actual_version="$("$MRUBY_BIN" -v | awk '{print $2}')"
 if [ "$actual_version" != "$MRUBY_VERSION" ]; then
   echo "mruby version mismatch: expected $MRUBY_VERSION, found $actual_version" >&2

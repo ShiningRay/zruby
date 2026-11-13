@@ -11,6 +11,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXPECTED_ZIG="${ZRUBY_ZIG_VERSION:-0.16.0}"
 EXPECTED_MRUBY="${ZRUBY_MRUBY_VERSION:-4.0.0}"
 MRUBY_BIN="${MRUBY_BIN:-$ROOT/vendor/mruby/build/host/bin/mruby}"
+if [ ! -x "$MRUBY_BIN" ] && [ -x "$MRUBY_BIN.exe" ]; then
+  MRUBY_BIN="$MRUBY_BIN.exe"
+fi
 
 actual_zig="$(zig version)"
 if [ "$actual_zig" != "$EXPECTED_ZIG" ]; then
