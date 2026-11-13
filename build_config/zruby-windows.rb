@@ -1,11 +1,11 @@
 # Windows/MinGW build profile for zruby.
-# Only the static library and host mrbc are needed. Other bin tools include
-# an interactive mirb/debugger that conflicts with MinGW's strndup headers.
+# Skip the stdlib-io gembox (io/dir/socket) and CLI tools; the binding only
+# needs the core language, math, metaprogramming and host mrbc.
 MRuby::Build.new do |conf|
   conf.toolchain
-  conf.gembox 'default'
-  # MRuby::Gem::List has no delete API; prune the internal array directly.
-  conf.gems.instance_variable_get(:@ary).reject! do |gem|
-    gem.name.to_s.start_with?('mruby-bin-') && gem.name != 'mruby-bin-mrbc'
-  end
+  conf.gembox 'stdlib'
+  conf.gembox 'stdlib-ext'
+  conf.gembox 'math'
+  conf.gembox 'metaprog'
+  conf.gem :core => 'mruby-bin-mrbc'
 end
