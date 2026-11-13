@@ -28,8 +28,15 @@ comptime {
         @export(&edata, .{ .name = "edata", .linkage = .strong });
         @export(&end, .{ .name = "end", .linkage = .strong });
     }
-    if (@sizeOf(c.mrb_value) != @sizeOf(usize)) {
-        @compileError("zruby expects mruby word-boxing mrb_value to be pointer-sized");
+    const expected_size = if (std.mem.eql(u8, c.boxing, "none"))
+        2 * @sizeOf(usize)
+    else
+        @sizeOf(usize);
+    if (@sizeOf(c.mrb_value) != expected_size) {
+        @compileError("zruby mrb_value Zig layout does not match the selected mruby boxing");
+    }
+    if (@alignOf(c.mrb_value) != @alignOf(usize)) {
+        @compileError("zruby mrb_value alignment does not match mruby");
     }
 }
 

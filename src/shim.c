@@ -19,17 +19,28 @@
 #error "zruby is tested with mruby 4.0.x; define ZRUBY_ALLOW_ANY_MRUBY_4 to try another 4.x"
 #endif
 
-#if defined(MRB_32BIT) || defined(MRB_NAN_BOXING) || defined(MRB_NO_BOXING) || \
-    !defined(MRB_WORD_BOXING)
-#error "zruby requires 64-bit MRB_WORD_BOXING; adjust src/c.zig and src/shim.c for other layouts"
+#if defined(MRB_32BIT)
+#error "zruby requires a 64-bit mruby build"
+#endif
+#if !defined(MRB_WORD_BOXING) && !defined(MRB_NAN_BOXING) && !defined(MRB_NO_BOXING)
+#error "zruby requires MRB_WORD_BOXING, MRB_NAN_BOXING, or MRB_NO_BOXING"
+#endif
+#if defined(MRB_NAN_BOXING) && !defined(MRB_INT64)
+#error "zruby requires MRB_INT64 with NAN boxing"
 #endif
 
+#if defined(MRB_NO_BOXING)
+_Static_assert(sizeof(mrb_value) == 2 * sizeof(uintptr_t),
+               "zruby requires the MRB_NO_BOXING mrb_value layout");
+#else
 _Static_assert(sizeof(mrb_value) == sizeof(uintptr_t),
-               "zruby requires mruby's word-boxing mrb_value layout");
+               "zruby requires a 64-bit word/NAN boxing mrb_value layout");
+#endif
 _Static_assert(sizeof(mrb_int) == 8, "zruby requires 64-bit mrb_int");
 _Static_assert(sizeof(mrb_float) == 8, "zruby requires 64-bit mrb_float");
 
 size_t zruby_value_size(void) { return sizeof(mrb_value); }
+size_t zruby_value_align(void) { return __alignof__(mrb_value); }
 
 int zruby_arena_save(mrb_state *mrb) { return mrb_gc_arena_save(mrb); }
 void zruby_arena_restore(mrb_state *mrb, int idx) {

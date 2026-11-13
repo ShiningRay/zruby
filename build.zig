@@ -30,6 +30,18 @@ pub fn build(b: *std.Build) void {
         "mruby install prefix containing include/ and lib/ (default: vendor/mruby/build/host)",
     ) orelse "vendor/mruby/build/host";
 
+    const mruby_boxing = b.option(
+        []const u8,
+        "mruby-boxing",
+        "mruby value layout: word (default), nan, or none",
+    ) orelse "word";
+    if (!std.mem.eql(u8, mruby_boxing, "word") and
+        !std.mem.eql(u8, mruby_boxing, "nan") and
+        !std.mem.eql(u8, mruby_boxing, "none"))
+    {
+        @panic("mruby-boxing must be word, nan, or none");
+    }
+
     const mruby_include = lazyPath(b, b.fmt("{s}/include", .{mruby_prefix}));
     const mruby_lib = lazyPath(b, b.fmt("{s}/lib", .{mruby_prefix}));
 
@@ -39,6 +51,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .link_libc = true,
     });
+    const options = b.addOptions();
+    options.addOption([]const u8, "mruby_boxing", mruby_boxing);
+    zruby_mod.addOptions("zruby_options", options);
+
     zruby_mod.addIncludePath(mruby_include);
     zruby_mod.addLibraryPath(mruby_lib);
     zruby_mod.linkSystemLibrary("mruby", .{});
@@ -58,6 +74,13 @@ pub fn build(b: *std.Build) void {
     zruby_mod.addCMacro("MRB_USE_BIGINT", "1");
     zruby_mod.addCMacro("MRB_USE_DEBUG_HOOK", "1");
     zruby_mod.addCMacro("MRB_NO_DEFAULT_RO_DATA_P", "1");
+    if (std.mem.eql(u8, mruby_boxing, "nan")) {
+        zruby_mod.addCMacro("MRB_NAN_BOXING", "1");
+        zruby_mod.addCMacro("MRB_INT64", "1");
+    } else if (std.mem.eql(u8, mruby_boxing, "none")) {
+        zruby_mod.addCMacro("MRB_NO_BOXING", "1");
+        zruby_mod.addCMacro("MRB_INT64", "1");
+    }
     if (allow_untested_mruby) {
         zruby_mod.addCMacro("ZRUBY_ALLOW_ANY_MRUBY_4", "1");
     }

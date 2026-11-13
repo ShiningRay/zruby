@@ -1,10 +1,15 @@
 //! Hand-written bindings for the mruby 4.x C API.
 //!
-//! `mrb_value` is intentionally declared as the word-boxing representation
-//! used by mruby's default build (`struct mrb_value { uintptr_t w; }`).
-//! The build script compiles `shim.c`, whose static assertions verify the
-//! layout and whose helpers cover inline functions and macros that are not
-//! exported symbols. Keep this file in sync with the shim.
+//! `mrb_value` follows the selected mruby boxing layout: word boxing and
+//! 64-bit NAN boxing are pointer-sized; `MRB_NO_BOXING` is the larger
+//! `{ union, tt }` struct. `build.zig -Dmruby-boxing=` selects the layout and
+//! passes the matching C macros to the shim, whose static assertions verify
+//! the layout. Keep this file in sync with the shim.
+
+const std = @import("std");
+const options = @import("zruby_options");
+
+pub const boxing = options.mruby_boxing;
 
 pub const mrb_state = opaque {};
 pub const mrb_ccontext = opaque {};
@@ -12,16 +17,30 @@ pub const mrb_parser_state = opaque {};
 pub const RClass = opaque {};
 pub const RObject = opaque {};
 
-/// Default mruby 4.x build: word boxing, 64-bit `mrb_int`.
-pub const mrb_value = extern struct {
-    w: usize,
-};
-
 pub const mrb_int = i64;
 pub const mrb_float = f64;
 pub const mrb_sym = u32;
 pub const mrb_aspec = u32;
 pub const mrb_bool = bool;
+
+pub const mrb_value_union = extern union {
+    f: mrb_float,
+    p: ?*anyopaque,
+    i: mrb_int,
+    sym: mrb_sym,
+};
+
+/// Word and 64-bit NAN boxing are both a single 64-bit word; MRB_NO_BOXING
+/// carries a value union plus the type tag.
+pub const mrb_value = if (std.mem.eql(u8, options.mruby_boxing, "none"))
+    extern struct {
+        value: mrb_value_union,
+        tt: c_int,
+    }
+else
+    extern struct {
+        w: usize,
+    };
 
 pub const mrb_func_t = ?*const fn (mrb: ?*mrb_state, self: mrb_value) callconv(.c) mrb_value;
 pub const RProc = opaque {};
@@ -153,6 +172,7 @@ pub extern fn mrb_get_args(mrb: *mrb_state, format: [*:0]const u8, ...) mrb_int;
 
 // Helpers implemented in shim.c.
 pub extern fn zruby_value_size() usize;
+pub extern fn zruby_value_align() usize;
 pub extern fn zruby_object_class(mrb: *mrb_state) *RClass;
 pub extern fn zruby_arena_save(mrb: *mrb_state) c_int;
 pub extern fn zruby_arena_restore(mrb: *mrb_state, idx: c_int) void;

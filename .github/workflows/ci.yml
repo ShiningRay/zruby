@@ -70,3 +70,51 @@ jobs:
 
       - name: Run example
         run: zig build run ${{ matrix.target_arg }}
+
+  boxing:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - boxing: nan
+            config: build_config/zruby-nan.rb
+          - boxing: none
+            config: build_config/zruby-none.rb
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install rake
+        run: gem install rake --no-document
+
+      - name: Build mruby (${{ matrix.boxing }})
+        run: MRUBY_CONFIG="$PWD/${{ matrix.config }}" ./scripts/build-mruby.sh
+
+      - name: Check binding symbols
+        run: ./scripts/check-bindings.sh
+
+      - name: Format check
+        run: zig fmt --check build.zig src tests examples
+
+      - name: Test (Debug)
+        run: zig build test -Dmruby-boxing=${{ matrix.boxing }}
+
+      - name: Test (ReleaseSafe)
+        run: zig build test -Doptimize=ReleaseSafe -Dmruby-boxing=${{ matrix.boxing }}
+
+      - name: Build library and example
+        run: zig build -Dmruby-boxing=${{ matrix.boxing }}
+
+      - name: Run example
+        run: zig build run -Dmruby-boxing=${{ matrix.boxing }}

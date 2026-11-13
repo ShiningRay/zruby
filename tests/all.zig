@@ -5,8 +5,9 @@ const common = @import("common.zig");
 const allocator = common.allocator;
 const newVM = common.newVM;
 
-test "ABI guard: mrb_value is pointer-sized" {
-    try std.testing.expectEqual(@sizeOf(usize), zruby.c.zruby_value_size());
+test "ABI guard: Zig and C agree on mrb_value size and alignment" {
+    try std.testing.expectEqual(@sizeOf(zruby.c.mrb_value), zruby.c.zruby_value_size());
+    try std.testing.expectEqual(@alignOf(zruby.c.mrb_value), zruby.c.zruby_value_align());
 }
 
 test "VM opens and closes" {

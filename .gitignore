@@ -4,3 +4,5 @@ vendor/
 .DS_Store
 *.o
 *.a
+
+build_config/*.lock
